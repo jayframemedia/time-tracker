@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Time Tracker</title>
+  <meta name="description" content="Clock in and out, see your shifts by day, export CSV. Your data stays on your devices.">
+  <meta name="theme-color" content="#0A0A0B">
+  <meta name="color-scheme" content="dark">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Time Tracker">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png">
+  <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="design/tokens.css">
+  <link rel="stylesheet" href="styles.css">
+  <script type="module" src="js/app.js"></script>
+</head>
+<body>
+  <div class="app">
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <main class="content" id="view"></main>
+    <nav class="tabbar" aria-label="Tabs">
+      <button type="button" data-tab="timer" aria-current="page">
+        <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5"/><path d="M9 2h6"/></svg>Timer</button>
+      <button type="button" data-tab="history">
+        <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11"/><path d="M9 12h11"/><path d="M9 18h11"/><path d="M4 6h.01"/><path d="M4 12h.01"/><path d="M4 18h.01"/></svg>History</button>
+      <button type="button" data-tab="settings">
+        <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h9"/><path d="M17 6h3"/><circle cx="15" cy="6" r="2"/><path d="M4 12h3"/><path d="M11 12h9"/><circle cx="9" cy="12" r="2"/><path d="M4 18h11"/><path d="M19 18h1"/><circle cx="17" cy="18" r="2"/></svg>Settings</button>
+    </nav>
+  </div>
+
+  <dialog class="sheet" id="export-sheet" aria-labelledby="sheet-title">
+    <div class="sheet-body">
+      <div class="row-between center">
+        <h2 id="sheet-title">Export CSV</h2>
+        <button type="button" class="icon-btn" data-close aria-label="Close">
+          <svg class="ico" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg>
+        </button>
+      </div>
+      <div class="pills" id="range-pills" role="group" aria-label="Date range"></div>
+      <div class="custom-dates" id="custom-dates" hidden>
+        <label>From<input type="date" id="csv-from"></label>
+        <label>To<input type="date" id="csv-to"></label>
+      </div>
+      <div class="card summary">
+        <div class="summary-main" id="csv-summary"></div>
+        <div class="muted small" id="csv-filename"></div>
+      </div>
+      <button type="button" class="primary" id="csv-go">Export</button>
+    </div>
+  </dialog>
+
+  <noscript><p style="padding:24px">Time Tracker needs JavaScript.</p></noscript>
+</body>
+</html>
