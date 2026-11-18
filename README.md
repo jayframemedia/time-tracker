@@ -16,17 +16,29 @@ An open-source, in-house time tracker for iPhone and Mac: a big orange Start but
 | `design/mockup.html` | Working iPhone reference prototype — open in a browser |
 | `design/mac-reference.html` | Mac layout reference — open in a browser |
 | `samples/sample-export.csv` | Exact CSV format the app must produce |
+| `index.html`, `styles.css`, `js/`, `sw.js`, `manifest.webmanifest`, `icons/` | The app |
+| `tests/` | `node --test` unit tests |
+| `tools/serve.mjs`, `tools/make-icons.mjs` | Local server; icon generator |
 
-## How to start (on your Mac)
+## Run it locally
 
-1. Unzip this folder somewhere sensible, e.g. `~/Projects/time-tracker`.
-2. Open Terminal in that folder and run:
+```bash
+node tools/serve.mjs
+```
+Open http://localhost:8080. Run the tests with `node --test tests/` (Node 22+, no installs).
+
+## Publish to GitHub Pages
+
+1. Create a **public** repo on GitHub (e.g. `time-tracker`). Don't add a README or licence there.
+2. In this folder:
    ```bash
-   git init
-   claude
+   git remote add origin https://github.com/<your-username>/time-tracker.git
+   git push -u origin main
    ```
-3. Paste the **Phase 1** prompt from `KICKOFF.md`.
-4. When Claude Code finishes a phase, test on your phone and Mac using its checklist, then paste the next phase prompt.
+3. On GitHub: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+4. Open the **Actions** tab. The "Test and deploy" run tests the code, then publishes it. When it's green, the app is at `https://<your-username>.github.io/time-tracker/`.
+
+**Releasing a change:** bump `VERSION` in `sw.js` (e.g. `v1` → `v2`), commit and push. Installed copies pick up the new version the next time they're opened.
 
 ## Before you publish to GitHub
 

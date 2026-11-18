@@ -9,6 +9,8 @@
 | Licence / hosting | MIT, public GitHub repo, GitHub Pages | Open source, free hosting |
 | Finish interaction | Press and hold 1 s | Prevents accidental shift ends; switch to tap + Undo if it feels slow |
 | Accent / theme | Dark only, #FF7A1A orange | Per brief: premium, dark, large orange Start |
+| Hours precision | Whole clock minutes (seconds ignored) | Hours always match the HH:MM times shown and exported: 08:00 → 17:00 is exactly 9.00 h |
+| Offline updates | Service worker caches a versioned copy; bump `VERSION` in `sw.js` on every release | Installed apps update on the next launch after a deploy |
 
 ## Defaults chosen — confirm or change (Jason)
 | Question | Default used | Alternatives |
