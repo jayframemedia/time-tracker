@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<title>Time Tracker — Mac reference layout</title>
+<!-- REFERENCE ONLY (static). Mac layout at >= 900 px wide: Timer left, History table right. Sample data is fake. -->
+<link rel="stylesheet" href="tokens.css">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #000; font-family: var(--font); color: var(--text); display: flex; justify-content: center; padding: 24px; }
+  .win { width: 1120px; height: 700px; background: var(--bg); border-radius: 12px; display: flex; overflow: hidden; }
+  .left { width: 400px; flex-shrink: 0; border-right: 1px solid var(--track); padding: 40px 36px; display: flex; flex-direction: column; align-items: center; }
+  .rb { align-self: stretch; display: flex; justify-content: space-between; align-items: baseline; }
+  .label { font-size: 13px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--text-muted); }
+  .muted { color: var(--text-muted); font-size: 15px; }
+  .counter { margin-top: 56px; font-size: var(--counter-size-mac); font-weight: 200; letter-spacing: -.02em; font-variant-numeric: tabular-nums; line-height: 1; }
+  .grp { margin-top: 40px; position: relative; width: 232px; height: 232px; display: flex; align-items: center; justify-content: center; }
+  .grp svg { position: absolute; inset: 0; transform: rotate(-90deg); }
+  .finish { position: relative; width: 188px; height: 188px; border-radius: 50%; border: 2px solid var(--accent); background: var(--surface-2); color: var(--accent); font: 600 22px var(--font); letter-spacing: .16em; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
+  .finish small { font-size: 11px; font-weight: 500; letter-spacing: .08em; color: var(--text-muted); }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card); }
+  .week-card { margin-top: auto; align-self: stretch; padding: 16px 18px; display: flex; justify-content: space-between; align-items: center; }
+  .right { flex: 1; min-width: 0; padding: 36px 44px; display: flex; flex-direction: column; gap: 18px; }
+  h1 { margin: 0; font-size: 28px; font-weight: 600; }
+  .pills { display: flex; gap: 8px; align-items: center; }
+  .pill { height: 32px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--border); background: transparent; color: var(--text-muted); font: 500 13px var(--font); }
+  .pill.on { border: none; background: var(--accent-tint); color: var(--accent); font-weight: 600; }
+  .export { margin-left: 8px; height: 32px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--accent); background: transparent; color: var(--accent); font: 600 13px var(--font); }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 14px; table-layout: fixed; }
+  th { text-align: left; font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--text-muted); padding: 12px 20px; border-bottom: 1px solid var(--border); }
+  td { padding: 9px 20px; border-top: 1px solid #1E1E22; }
+  td:first-child { font-weight: 600; } td:nth-child(2) { color: var(--text-soft); }
+  th:last-child, td:last-child { text-align: right; } td:last-child { font-weight: 600; }
+  tr.wk td { background: var(--surface-week); border-top: none; padding: 12px 20px 6px; font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--text-muted); }
+  tr.wk td:last-child { color: var(--accent); font-size: 14px; letter-spacing: 0; }
+  .tablecard { overflow: hidden; }
+</style>
+</head>
+<body>
+<div class="win">
+  <section class="left" aria-label="Timer">
+    <div class="rb"><span class="label">Today</span><span class="muted">Thu 19 Nov</span></div>
+    <div class="counter">02:14:37</div>
+    <div class="muted" style="margin-top:12px">Started 7:58 am</div>
+    <div class="grp">
+      <svg width="232" height="232" viewBox="0 0 232 232" aria-hidden="true"><circle cx="116" cy="116" r="108" style="fill:none;stroke:var(--track);stroke-width:4px"/><circle cx="116" cy="116" r="108" style="fill:none;stroke:var(--accent);stroke-width:6px;stroke-linecap:round;stroke-dasharray:678.58;stroke-dashoffset:520"/></svg>
+      <button class="finish" aria-label="Finish: press and hold for one second"><span>FINISH</span><small>HOLD 1 SEC</small></button>
+    </div>
+    <div class="card week-card"><span class="muted">This week</span><b style="font-size:17px">26.75 h</b></div>
+  </section>
+  <section class="right" aria-label="History">
+    <div class="rb" style="align-items:center"><h1>History</h1>
+      <div class="pills"><button class="pill on">Last 2 weeks</button><button class="pill">This month</button><button class="pill">All</button><button class="export">Export CSV</button></div>
+    </div>
+    <div class="card tablecard">
+      <table>
+        <thead><tr><th>Date</th><th>Day</th><th>Clock in</th><th>Clock out</th><th>Total hours</th></tr></thead>
+        <tbody>
+          <tr class="wk"><td colspan="4">Week of 16 Nov</td><td>26.75 h</td></tr>
+          <tr><td>18 Nov 2026</td><td>Wednesday</td><td>7:45 am</td><td>4:30 pm</td><td>8.75</td></tr>
+          <tr><td>17 Nov 2026</td><td>Tuesday</td><td>8:00 am</td><td>5:00 pm</td><td>9.00</td></tr>
+          <tr><td>16 Nov 2026</td><td>Monday</td><td>1:15 pm</td><td>5:45 pm</td><td>4.50</td></tr>
+          <tr><td>16 Nov 2026</td><td>Monday</td><td>8:00 am</td><td>12:30 pm</td><td>4.50</td></tr>
+          <tr class="wk"><td colspan="4">Week of 9 Nov</td><td>42.75 h</td></tr>
+          <tr><td>13 Nov 2026</td><td>Friday</td><td>8:00 am</td><td>3:30 pm</td><td>7.50</td></tr>
+          <tr><td>12 Nov 2026</td><td>Thursday</td><td>7:30 am</td><td>4:00 pm</td><td>8.50</td></tr>
+          <tr><td>11 Nov 2026</td><td>Wednesday</td><td>8:00 am</td><td>5:00 pm</td><td>9.00</td></tr>
+          <tr><td>10 Nov 2026</td><td>Tuesday</td><td>8:15 am</td><td>5:15 pm</td><td>9.00</td></tr>
+          <tr><td>9 Nov 2026</td><td>Monday</td><td>8:00 am</td><td>4:45 pm</td><td>8.75</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+</body>
+</html>

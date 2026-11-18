@@ -1,0 +1,42 @@
+/* Time Tracker design tokens — use exactly. Dark only. */
+:root {
+  --bg: #0A0A0B;
+  --bg-bar: #0D0D0F;
+  --surface: #161618;
+  --surface-2: #141416;
+  --surface-week: #121214;
+  --border: #26262A;
+  --divider: #222226;
+  --track: #1F1F23;
+  --toast: #1E1E21;
+  --toast-border: #2E2E33;
+
+  --text: #F5F5F7;
+  --text-muted: #8E8E93;
+  --text-soft: #B4B4BA;
+
+  --accent: #FF7A1A;
+  --accent-glow: rgba(255, 122, 26, 0.35);
+  --accent-halo: rgba(255, 122, 26, 0.08);
+  --accent-tint: #2A1A0E;
+
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif;
+
+  --radius-card: 16px;
+  --radius-pill: 999px;
+  --radius-phone-preview: 44px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+
+  --counter-size: 76px;
+  --counter-size-mac: 64px;
+  --start-size: 216px;
+  --ring-size: 264px;
+
+  --motion: 200ms ease-out;
+}

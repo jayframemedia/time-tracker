@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Time Tracker — iPhone reference mockup</title>
+<!-- REFERENCE ONLY. Shows the target look and behaviour. Sample history is fake.
+     Not the app's code structure: the real app uses IndexedDB, modules, a service worker, etc. -->
+<link rel="stylesheet" href="tokens.css">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; background: #000; display: flex; justify-content: center; align-items: flex-start; font-family: var(--font); }
+  .phone { width: 390px; height: 844px; margin: 24px; border-radius: var(--radius-phone-preview); background: var(--bg); color: var(--text); display: flex; flex-direction: column; position: relative; overflow: hidden; }
+  .content { flex: 1; min-height: 0; overflow-y: auto; padding: 56px 24px 24px; display: flex; flex-direction: column; }
+  .row-between { display: flex; justify-content: space-between; align-items: baseline; }
+  .label { font-size: 13px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted); }
+  .muted { color: var(--text-muted); font-size: 15px; }
+  .timer { flex: 1; display: flex; flex-direction: column; align-items: center; }
+  .timer > .row-between { align-self: stretch; }
+  .counter { margin-top: 72px; font-size: var(--counter-size); font-weight: 200; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; line-height: 1; }
+  .subline { margin-top: 14px; height: 20px; }
+  .btn-group { margin-top: 52px; position: relative; width: var(--ring-size); height: var(--ring-size); display: flex; align-items: center; justify-content: center; }
+  .btn-group svg { position: absolute; inset: 0; transform: rotate(-90deg); }
+  .ring-track { fill: none; stroke: var(--track); stroke-width: 4px; }
+  .ring { fill: none; stroke-width: 6px; stroke-linecap: round; stroke-dasharray: 779.11; transition: stroke var(--motion); }
+  .big { position: relative; width: var(--start-size); height: var(--start-size); border-radius: 50%; font-family: inherit; font-size: 24px; font-weight: 600; letter-spacing: 0.16em; cursor: pointer; transition: transform var(--motion), background var(--motion); user-select: none; -webkit-user-select: none; touch-action: none; }
+  .big:active { transform: scale(0.97); }
+  .start { border: none; background: var(--accent); color: var(--bg); box-shadow: 0 0 0 10px var(--accent-halo), 0 18px 60px var(--accent-glow); }
+  .finish { border: 2px solid var(--accent); background: var(--surface-2); color: var(--accent); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
+  .finish small { font-size: 12px; font-weight: 500; letter-spacing: 0.08em; color: var(--text-muted); }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card); }
+  .today { margin-top: auto; align-self: stretch; padding: 16px 18px; display: flex; justify-content: space-between; align-items: center; }
+  .today b { font-size: 17px; font-variant-numeric: tabular-nums; }
+  h1 { margin: 0; font-size: 30px; font-weight: 600; letter-spacing: -0.01em; }
+  .stack { display: flex; flex-direction: column; gap: 20px; }
+  .export { height: 36px; padding: 0 16px; border-radius: var(--radius-pill); border: 1px solid var(--accent); background: transparent; color: var(--accent); font: 600 14px var(--font); display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  .cols, .hrow { display: grid; grid-template-columns: 1.25fr 1fr 1fr 0.8fr; }
+  .cols { padding: 0 17px; font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); }
+  .hrow { align-items: center; padding: 14px 16px; font-size: 15px; font-variant-numeric: tabular-nums; }
+  .hrow + .hrow { border-top: 1px solid var(--divider); }
+  .hrow .d { font-weight: 600; } .hrow .h { font-weight: 600; text-align: right; }
+  .week { display: flex; flex-direction: column; gap: 8px; }
+  .week-head { padding: 0 4px; }
+  .week-head .t { font-size: 15px; font-weight: 600; color: var(--accent); font-variant-numeric: tabular-nums; }
+  .card.list { overflow: hidden; }
+  .set { display: flex; justify-content: space-between; align-items: center; padding: 16px; font-size: 15px; }
+  .set + .set { border-top: 1px solid var(--divider); }
+  nav { height: 84px; flex-shrink: 0; border-top: 1px solid var(--track); background: var(--bg-bar); display: grid; grid-template-columns: repeat(3, 1fr); padding-bottom: 20px; }
+  nav button { background: none; border: none; font: 600 11px var(--font); color: var(--text-muted); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; cursor: pointer; }
+  nav button[aria-current="page"] { color: var(--accent); }
+  nav svg, .ico { fill: none; stroke: currentColor; stroke-width: 1.8px; stroke-linecap: round; stroke-linejoin: round; }
+  .toast { position: absolute; top: 20px; left: 50%; transform: translate(-50%, -12px); opacity: 0; background: var(--toast); border: 1px solid var(--toast-border); border-radius: var(--radius-pill); padding: 10px 18px; font-size: 14px; font-weight: 500; white-space: nowrap; display: flex; align-items: center; gap: 8px; z-index: 5; transition: opacity var(--motion), transform var(--motion); pointer-events: none; }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  .toast::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+  @media (prefers-reduced-motion: reduce) { .big, .toast, .ring { transition: opacity var(--motion); } .big:active { transform: none; } }
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="toast" id="toast" role="status"></div>
+  <main class="content" id="content"></main>
+  <nav aria-label="Tabs">
+    <button data-tab="timer"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5"/><path d="M9 2h6"/></svg>Timer</button>
+    <button data-tab="history"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11"/><path d="M9 12h11"/><path d="M9 18h11"/><path d="M4 6h.01"/><path d="M4 12h.01"/><path d="M4 18h.01"/></svg>History</button>
+    <button data-tab="settings"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h9"/><path d="M17 6h3"/><circle cx="15" cy="6" r="2"/><path d="M4 12h3"/><path d="M11 12h9"/><circle cx="9" cy="12" r="2"/><path d="M4 18h11"/><path d="M19 18h1"/><circle cx="17" cy="18" r="2"/></svg>Settings</button>
+  </nav>
+</div>
+<script>
+const C = 779.11;
+const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const S = { tab: 'timer', startedAt: null, hold: 0, entries: [
+  ['2026-11-18T07:45:00+10:00','2026-11-18T16:30:00+10:00'],
+  ['2026-11-17T08:00:00+10:00','2026-11-17T17:00:00+10:00'],
+  ['2026-11-16T13:15:00+10:00','2026-11-16T17:45:00+10:00'],
+  ['2026-11-16T08:00:00+10:00','2026-11-16T12:30:00+10:00'],
+  ['2026-11-13T08:00:00+10:00','2026-11-13T15:30:00+10:00'],
+  ['2026-11-12T07:30:00+10:00','2026-11-12T16:00:00+10:00'],
+  ['2026-11-11T08:00:00+10:00','2026-11-11T17:00:00+10:00'],
+  ['2026-11-10T08:15:00+10:00','2026-11-10T17:15:00+10:00'],
+  ['2026-11-09T08:00:00+10:00','2026-11-09T16:45:00+10:00']
+].map(([a, b], i) => ({ id: 's' + i, start: Date.parse(a), end: Date.parse(b) })) };
+
+// Brisbane is UTC+10 all year; the real app uses device local time.
+const bne = ms => new Date(ms + 36e5 * 10);
+const pad = n => String(n).padStart(2, '0');
+const clock = ms => { const s = Math.max(0, Math.floor(ms / 1000)); return pad(Math.floor(s / 3600)) + ':' + pad(Math.floor(s / 60) % 60) + ':' + pad(s % 60); };
+const fDate = ms => { const d = bne(ms); return DAYS[d.getUTCDay()] + ' ' + d.getUTCDate() + ' ' + MONTHS[d.getUTCMonth()]; };
+const fTime = ms => { const d = bne(ms); let h = d.getUTCHours(); const ap = h >= 12 ? 'pm' : 'am'; h = h % 12 || 12; return h + ':' + pad(d.getUTCMinutes()) + ' ' + ap; };
+const dayKey = ms => { const d = bne(ms); return d.getUTCFullYear() + '-' + d.getUTCMonth() + '-' + d.getUTCDate(); };
+const weekStart = ms => { const d = bne(ms); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - (d.getUTCDay() + 6) % 7) - 36e6; };
+const hrs = e => (e.end - e.start) / 36e5;
+const dur = ms => { const m = Math.floor(ms / 6e4); return Math.floor(m / 60) + 'h ' + pad(m % 60) + 'm'; };
+
+let toastT;
+function toast(t) { const el = document.getElementById('toast'); el.textContent = t; el.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('show'), 2600); }
+
+function timerView() {
+  const running = !!S.startedAt, now = Date.now(), el = running ? now - S.startedAt : 0;
+  const todayH = S.entries.filter(e => dayKey(e.start) === dayKey(now)).reduce((s, e) => s + hrs(e), 0);
+  let p = 0, col = 'var(--accent)';
+  if (running) { if (S.hold > 0) { p = S.hold; col = 'var(--text)'; } else p = (el % 36e5) / 36e5; }
+  return `<div class="timer">
+    <div class="row-between"><div class="label">Today</div><div class="muted">${fDate(now)}</div></div>
+    <div class="counter" id="counter">${clock(el)}</div>
+    <div class="subline muted">${running ? 'Started ' + fTime(S.startedAt) : 'Tap start to clock in'}</div>
+    <div class="btn-group">
+      <svg width="264" height="264" viewBox="0 0 264 264" aria-hidden="true"><circle class="ring-track" cx="132" cy="132" r="124"/><circle class="ring" id="ring" cx="132" cy="132" r="124" style="stroke:${col};stroke-dashoffset:${(C * (1 - p)).toFixed(2)}"/></svg>
+      ${running
+        ? `<button class="big finish" id="finish" aria-label="Finish: press and hold for one second"><span>FINISH</span><small>HOLD 1 SEC</small></button>`
+        : `<button class="big start" id="start" aria-label="Start timer">START</button>`}
+    </div>
+    <div class="card today"><span class="muted">Logged today</span><b>${todayH.toFixed(2)} h</b></div>
+  </div>`;
+}
+
+function historyView() {
+  const sorted = S.entries.slice().sort((a, b) => b.start - a.start);
+  const weeks = [];
+  sorted.forEach(e => { const ws = weekStart(e.start); let w = weeks[weeks.length - 1]; if (!w || w.ws !== ws) { w = { ws, list: [] }; weeks.push(w); } w.list.push(e); });
+  const weekHtml = weeks.map(w => {
+    let rows = '', i = 0;
+    while (i < w.list.length) {
+      const k = dayKey(w.list[i].start), day = [];
+      while (i < w.list.length && dayKey(w.list[i].start) === k) day.push(w.list[i++]);
+      day.sort((a, b) => a.start - b.start);
+      day.forEach((e, j) => rows += `<div class="hrow"><div class="d">${j ? '' : fDate(e.start)}</div><div>${fTime(e.start)}</div><div>${fTime(e.end)}</div><div class="h">${hrs(e).toFixed(2)} h</div></div>`);
+      if (day.length > 1) rows += `<div class="hrow"><div></div><div></div><div class="muted">Day total</div><div class="h" style="color:var(--accent)">${day.reduce((s, e) => s + hrs(e), 0).toFixed(2)} h</div></div>`;
+    }
+    const total = w.list.reduce((s, e) => s + hrs(e), 0);
+    return `<div class="week"><div class="row-between week-head"><div class="label" style="letter-spacing:.08em">Week of ${fDate(w.ws).slice(4)}</div><div class="t">${total.toFixed(2)} h</div></div><div class="card list">${rows}</div></div>`;
+  }).join('');
+  return `<div class="stack">
+    <div class="row-between" style="align-items:center"><h1>History</h1>
+      <button class="export" id="export"><svg class="ico" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" style="stroke-width:2px"><path d="M12 4v11"/><path d="M7 10l5 5 5-5"/><path d="M5 20h14"/></svg>Export CSV</button></div>
+    <div class="cols"><div>Date</div><div>Clock in</div><div>Clock out</div><div style="text-align:right">Total</div></div>
+    ${weekHtml || '<p class="muted">No shifts yet. Tap Start on the Timer tab.</p>'}
+  </div>`;
+}
+
+function settingsView() {
+  const rows = [['Google Sheets sync','Off'],['Time format','12-hour'],['Week starts','Monday'],['Rounding','None'],['Job &amp; employee labels','Hidden'],['Export all data','CSV']];
+  return `<div class="stack"><h1>Settings</h1><div class="card list">${rows.map(r => `<div class="set"><span>${r[0]}</span><span class="muted">${r[1]} ›</span></div>`).join('')}</div>
+    <p class="muted" style="text-align:center;font-size:13px">Open source · MIT licence · Your data stays on your devices</p></div>`;
+}
+
+function render() {
+  document.getElementById('content').innerHTML = S.tab === 'timer' ? timerView() : S.tab === 'history' ? historyView() : settingsView();
+  document.querySelectorAll('nav button').forEach(b => b.dataset.tab === S.tab ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current'));
+  bind();
+}
+
+let holdT, holdStart;
+function finish() {
+  clearInterval(holdT); holdT = null;
+  const end = Date.now(), e = { id: 'e' + end, start: S.startedAt, end };
+  S.entries.unshift(e); S.startedAt = null; S.hold = 0;
+  render(); toast('Logged · ' + dur(end - e.start));
+}
+function bind() {
+  const st = document.getElementById('start');
+  if (st) st.onclick = () => { S.startedAt = Date.now(); render(); };
+  const f = document.getElementById('finish');
+  if (f) {
+    f.onpointerdown = () => { holdStart = Date.now(); clearInterval(holdT); holdT = setInterval(() => { S.hold = Math.min(1, (Date.now() - holdStart) / 1000); if (S.hold >= 1) finish(); else tick(); }, 30); };
+    const cancel = () => { if (holdT) { clearInterval(holdT); holdT = null; S.hold = 0; tick(); } };
+    f.onpointerup = cancel; f.onpointerleave = cancel;
+    f.onkeydown = ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); finish(); } };
+  }
+  const ex = document.getElementById('export');
+  if (ex) ex.onclick = () => toast('CSV ready · ' + S.entries.length + ' entries');
+}
+function tick() {
+  if (S.tab !== 'timer') return;
+  const c = document.getElementById('counter'), r = document.getElementById('ring');
+  if (!c || !r) return;
+  const running = !!S.startedAt, el = running ? Date.now() - S.startedAt : 0;
+  c.textContent = clock(el);
+  let p = 0, col = 'var(--accent)';
+  if (running) { if (S.hold > 0) { p = S.hold; col = 'var(--text)'; } else p = (el % 36e5) / 36e5; }
+  r.style.stroke = col; r.style.strokeDashoffset = (C * (1 - p)).toFixed(2);
+}
+document.querySelectorAll('nav button').forEach(b => b.onclick = () => { S.tab = b.dataset.tab; render(); });
+render();
+setInterval(tick, 250);
+</script>
+</body>
+</html>
