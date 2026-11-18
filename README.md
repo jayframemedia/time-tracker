@@ -25,7 +25,7 @@ An open-source, in-house time tracker for iPhone and Mac: a big orange Start but
 ```bash
 node tools/serve.mjs
 ```
-Open http://localhost:8080. Run the tests with `node --test tests/` (Node 22+, no installs).
+Open http://localhost:8080. Run the tests with `node --test tests/*.test.js` (Node 22+, no installs).
 
 ## Publish to GitHub Pages
 
