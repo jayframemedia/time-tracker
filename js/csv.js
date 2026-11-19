@@ -20,6 +20,17 @@ export function csvField(value) {
 }
 
 /** One shift. Date and Day come from the stored start; times and hours use the rounding setting. */
+/**
+ * Free text typed by people (job, employee) could start with =, +, - or @ and be run as a
+ * formula when the CSV is opened in Excel/Sheets/Numbers. Prefix those with ' so they stay text.
+ * (OWASP "CSV injection" guidance.)
+ */
+export function safeText(value) {
+  if (value == null) return value;
+  const s = String(value);
+  return /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
+}
+
 export function csvRow(entry, { rounding = 0 } = {}) {
   const day = new Date(entry.start);
   const t = shiftTimes(entry, rounding);
@@ -29,8 +40,8 @@ export function csvRow(entry, { rounding = 0 } = {}) {
     time24(t.start),
     time24(t.end),
     formatHours(entryMinutes(entry, rounding)),
-    entry.employee,
-    entry.job,
+    safeText(entry.employee),
+    safeText(entry.job),
     entry.id,
   ].map(csvField).join(',');
 }

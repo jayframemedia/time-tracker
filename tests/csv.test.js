@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  buildCsv, csvField, csvFilename, rangeDates, entriesInRange, CSV_HEADER,
+  buildCsv, csvField, csvFilename, rangeDates, entriesInRange, CSV_HEADER, safeText,
 } from '../js/csv.js';
 
 const sampleEntries = () => [
@@ -73,6 +73,17 @@ test('rounding applies to CSV times and hours; date stays the stored start date'
   const csv = buildCsv([entry('2026-11-16', '08:07', '16:53', { id: 'r' })], { rounding: 15 });
   assert.match(csv, /2026-11-16,Monday,08:00,17:00,9\.00,,,r/);
   assert.match(buildCsv([entry('2026-11-16', '08:07', '16:53', { id: 'r' })]), /08:07,16:53,8\.77/);
+});
+
+test('formula-looking job/employee text is neutralised (CSV injection)', () => {
+  assert.equal(safeText('=HYPERLINK("http://x","click")'), `'=HYPERLINK("http://x","click")`);
+  assert.equal(safeText('+61 400'), "'+61 400");
+  assert.equal(safeText('-5'), "'-5");
+  assert.equal(safeText('@SUM(A1)'), "'@SUM(A1)");
+  assert.equal(safeText('Site A'), 'Site A');
+  assert.equal(safeText(null), null);
+  const csv = buildCsv([entry('2026-11-16', '08:00', '17:00', { id: 'z', job: '=1+1', employee: 'Sam' })]);
+  assert.match(csv, /,9\.00,Sam,'=1\+1,z\r\n$/);
 });
 
 test('filename', () => {
