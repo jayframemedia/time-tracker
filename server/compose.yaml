@@ -1,0 +1,27 @@
+# Time Tracker sync: the sync service plus a Cloudflare Tunnel connector.
+# No ports are published — the service is only reachable through the tunnel,
+# whose public hostname (time.<your domain>) points at http://sync:8787.
+name: time-tracker
+
+services:
+  sync:
+    build: .
+    restart: unless-stopped
+    environment:
+      SYNC_TOKEN: ${SYNC_TOKEN:?Set SYNC_TOKEN in .env}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-https://jayframemedia.github.io}
+    volumes:
+      - sync-data:/data
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:?Set TUNNEL_TOKEN in .env}
+    depends_on:
+      sync:
+        condition: service_healthy
+
+volumes:
+  sync-data:
