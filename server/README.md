@@ -107,6 +107,7 @@ Everyone gets their own **personal key**. The owner's key is the original `SYNC_
 | Someone leaves | `docker compose exec sync node admin.mjs revoke "Sam Smith"` (their hours are kept) |
 | Lost key | `docker compose exec sync node admin.mjs new-key "Sam Smith"` |
 | Fix a name | `docker compose exec sync node admin.mjs rename "Owner" "Jason"` |
+| Remove a former staff member's old records | `docker compose exec sync node admin.mjs purge "Sam Smith" --before 2019-07-01`. This only shows what it would delete; add `--yes` to do it. It only works for revoked staff, and backup copies keep the data until they're removed. |
 
 Give each key to the person privately. They install the app from https://timetracker.jayframemedia.com.au, open **Settings → Sync between devices**, and enter `time.jayframemedia.com.au` and their key.
 

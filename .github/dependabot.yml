@@ -10,6 +10,14 @@ updates:
       actions:
         patterns: ['*']
 
+  - package-ecosystem: npm # dev-only tools (ESLint, Playwright)
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      dev-tools:
+        patterns: ['*']
+
   - package-ecosystem: docker
     directory: /server
     schedule:

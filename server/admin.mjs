@@ -4,6 +4,8 @@
 //   docker compose exec sync node admin.mjs revoke "Sam Smith"   → key stops working; shifts are kept
 //   docker compose exec sync node admin.mjs new-key "Sam Smith"  → replaces a lost key (also un-revokes)
 //   docker compose exec sync node admin.mjs rename "Owner" "Jason"
+//   docker compose exec sync node admin.mjs purge "Sam Smith" --before 2019-07-01 [--yes]
+//        → permanently remove a former (revoked) staff member's records; without --yes it only shows what it would do
 import { openStore } from './store.mjs';
 
 const [cmd, ...args] = process.argv.slice(2);
@@ -12,7 +14,8 @@ const usage = `Usage:
   node admin.mjs add "Full Name"
   node admin.mjs revoke "Full Name"
   node admin.mjs new-key "Full Name"
-  node admin.mjs rename "Old Name" "New Name"`;
+  node admin.mjs rename "Old Name" "New Name"
+  node admin.mjs purge "Full Name" [--before YYYY-MM-DD] [--yes]`;
 
 const store = openStore(process.env.DB_PATH || '/data/sync.db', {
   ownerToken: process.env.SYNC_TOKEN,
@@ -55,6 +58,22 @@ try {
       if (!name || !to) throw new Error('rename "Old Name" "New Name"');
       store.renameUser(name, to);
       console.log(`Renamed ${name} → ${to}.`);
+      break;
+    }
+    case 'purge': {
+      const flag = (f) => args.includes(f);
+      const bi = args.indexOf('--before');
+      const before = bi === -1 ? null : args[bi + 1] || '';
+      const r = store.purgeUser(name, { before, dryRun: !flag('--yes') });
+      const what = `${r.shifts} shift${r.shifts === 1 ? '' : 's'} for ${r.name}${r.before ? ` starting before ${r.before}` : ' (all of them)'}`;
+      if (!r.done) {
+        console.log(`Would permanently delete ${what}, with their edit history.`);
+        console.log('Nothing has been changed. Add --yes to do it.');
+      } else {
+        console.log(`Permanently deleted ${what}, with their edit history.`);
+      }
+      console.log('Note: backups still contain them. Daily copies age out after 14 days; monthly copies (on the');
+      console.log('server in /data/backups/monthly and in your R2 bucket) stay until you delete them.');
       break;
     }
     default:

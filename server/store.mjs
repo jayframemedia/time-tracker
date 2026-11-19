@@ -232,6 +232,34 @@ export function openStore(dbPath, { ownerToken = null, ownerName = 'Owner' } = {
       if (u.role === 'owner') throw new Error('The owner can’t be revoked (use new-key to replace a lost owner key)');
       db.prepare('UPDATE users SET revoked_at = ? WHERE id = ?').run(nowIso(), u.id);
     },
+    /**
+     * Permanently remove a former staff member's shifts (and their edit history) that start
+     * before `before` (YYYY-MM-DD), or all of them if `before` is null. Only for revoked staff.
+     * With dryRun, nothing changes and the count is returned.
+     */
+    purgeUser(name, { before = null, dryRun = true } = {}) {
+      const u = q.userByName.get(name);
+      if (!u) throw new Error(`No one called "${name}"`);
+      if (u.role === 'owner') throw new Error('The owner’s records can’t be purged');
+      if (!u.revoked_at) throw new Error(`${u.name} can still sync. Revoke them first: node admin.mjs revoke "${u.name}"`);
+      if (before !== null && !isDate(before)) throw new Error('Use a date like 2019-07-01 for --before');
+      const where = before === null ? 'user_id = ?' : 'user_id = ? AND start_date < ?';
+      const args = before === null ? [u.id] : [u.id, before];
+      const ids = db.prepare(`SELECT id FROM entries WHERE ${where}`).all(...args).map((r) => r.id);
+      if (!dryRun && ids.length) {
+        db.exec('BEGIN IMMEDIATE');
+        try {
+          const delVersions = db.prepare('DELETE FROM versions WHERE entry_id = ?');
+          for (const id of ids) delVersions.run(id);
+          db.prepare(`DELETE FROM entries WHERE ${where}`).run(...args);
+          db.exec('COMMIT');
+        } catch (err) {
+          db.exec('ROLLBACK');
+          throw err;
+        }
+      }
+      return { name: u.name, shifts: ids.length, before, done: !dryRun };
+    },
     renameUser(from, to) {
       const u = q.userByName.get(from);
       if (!u) throw new Error(`No one called "${from}"`);

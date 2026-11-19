@@ -176,6 +176,23 @@ test('revoke, new key and rename', async () => {
   assert.ok(store.listUsers().find((u) => u.name === 'Alex Brown').shifts >= 1, 'shifts kept');
 });
 
+test('purge: only for revoked staff, preview first, removes shifts and history', async () => {
+  const key = store.addUser('Leaver');
+  await push(key, [shift('l1', '2026-01-05', '08:00', '16:00'), shift('l2', '2026-06-01', '08:00', '16:00')]);
+  assert.throws(() => store.purgeUser('Leaver'), /can still sync/);
+  assert.throws(() => store.purgeUser('Jason'), /owner/);
+  store.revokeUser('Leaver');
+  assert.throws(() => store.purgeUser('Leaver', { before: '1/1/2026' }), /date like/);
+  const preview = store.purgeUser('Leaver', { before: '2026-03-01' });
+  assert.deepEqual([preview.shifts, preview.done], [1, false]);
+  assert.equal(store.team('2026-01-01', '2026-12-31').entries.filter((e) => e.id.startsWith('l')).length, 2, 'preview changes nothing');
+  const done = store.purgeUser('Leaver', { before: '2026-03-01', dryRun: false });
+  assert.deepEqual([done.shifts, done.done], [1, true]);
+  assert.deepEqual(store.team('2026-01-01', '2026-12-31').entries.filter((e) => e.id.startsWith('l')).map((e) => e.id), ['l2']);
+  assert.equal(store.purgeUser('Leaver', { dryRun: false }).shifts, 1); // everything that's left
+  assert.equal(store.team('2026-01-01', '2026-12-31').entries.filter((e) => e.id.startsWith('l')).length, 0);
+});
+
 test('admin command line', () => {
   const env = { ...process.env, DB_PATH: join(dir, 'sync.db') };
   const run = (...a) => execFileSync(process.execPath, ['server/admin.mjs', ...a], { env, encoding: 'utf8' });
@@ -188,6 +205,7 @@ test('admin command line', () => {
   assert.match(list, /Taylor\s+staff\s+active\s+0\s+/);
   run('revoke', 'Taylor');
   assert.equal(store.authenticate(key), null);
+  assert.match(run('purge', 'Taylor'), /Would permanently delete 0 shifts for Taylor \(all of them\)[\s\S]*Add --yes/);
 });
 
 test('upgrading an existing single-user database keeps every shift for the owner', () => {
