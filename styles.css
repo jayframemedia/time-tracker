@@ -148,7 +148,7 @@ h2 { margin: 0; font-size: 20px; font-weight: 600; }
 .notice b { color: var(--text); }
 .notice.danger { border-color: var(--danger); background: rgba(255, 69, 58, 0.1); }
 .notice.danger b { color: var(--danger); }
-.link { background: none; border: none; padding: 0 0 0 6px; color: var(--accent); font-weight: 600; font-size: 14px; cursor: pointer; min-height: 44px; }
+.link { display: inline-block; background: none; border: none; padding: 12px 4px; margin: -12px 0 -12px 2px; color: var(--accent); font-weight: 600; font-size: 14px; line-height: 20px; cursor: pointer; } /* 44 px tap target without stretching the line */
 
 /* ---------- History ---------- */
 .stack { display: flex; flex-direction: column; gap: 20px; padding-top: 12px; }
@@ -491,3 +491,9 @@ tr.shift:hover .row-del, tr.shift:focus-within .row-del, .row-del:focus-visible 
   .sheet { margin: auto; border-radius: 20px; border-bottom: 1px solid var(--border); }
 }
 @media (hover: none) { .row-del { opacity: 1; } }
+
+/* ---------- Sync status ---------- */
+.sync-status { display: inline-flex; align-items: center; gap: 6px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); flex-shrink: 0; }
+.dot.ok { background: #30D158; }
+.dot.bad { background: var(--danger); }

@@ -1,7 +1,7 @@
 // Service worker: precache the whole app so it opens offline after the first load.
 // Bump VERSION whenever any app file changes, so installed copies pick up the update
 // (the new version activates the next time the app is opened).
-const VERSION = 'v2';
+const VERSION = 'v3';
 const CACHE = `time-tracker-${VERSION}`;
 
 const ASSETS = [
@@ -18,6 +18,7 @@ const ASSETS = [
   './js/sheets.js',
   './js/store.js',
   './js/swipe.js',
+  './js/sync.js',
   './js/timer.js',
   './js/ui.js',
   './icons/apple-touch-icon.png',

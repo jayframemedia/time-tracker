@@ -145,3 +145,46 @@ export function askKeepOrDiscard(seconds) {
     dlg.querySelector('[data-choice="keep"]').focus();
   });
 }
+
+/**
+ * Connect this device to the sync server, sync now, or turn sync off.
+ * onConnect(url, token) may throw an Error whose message is shown in the sheet.
+ */
+export function openSyncSheet({ config, statusText, errorText, onConnect, onSyncNow, onDisconnect }) {
+  const on = !!config;
+  const dlg = openSheet('sync-sheet', `
+    ${header('sync-sheet', 'Sync between devices')}
+    <p class="sheet-text">Your iPhone and Mac share one history through your own sync server. Use the same address and key on each device.</p>
+    <div class="fields">
+      <label>Server address<input type="url" name="url" value="${esc(config?.url || '')}" placeholder="https://time.example.com"
+        inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="off"></label>
+      <label>Sync key<input type="password" name="token" value="" placeholder="${on ? 'Saved — type a new key to change it' : 'Paste the key from your server'}"
+        autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="off"></label>
+    </div>
+    ${on ? `<div class="card summary"><div class="summary-main">${esc(statusText)}</div>
+      ${errorText ? `<div class="error small">${esc(errorText)}</div>` : ''}</div>` : ''}
+    <div class="error small" id="sync-error" role="alert"></div>
+    <button type="submit" class="primary" id="sync-connect">${on ? 'Save and sync' : 'Connect'}</button>
+    ${on ? '<button type="button" class="secondary" id="sync-now">Sync now</button>' : ''}
+    ${on ? '<button type="button" class="danger-btn" id="sync-off">Turn off sync</button>' : ''}
+    <p class="muted small">Your shifts stay on this device either way. Turning sync off doesn’t delete anything.</p>`);
+  const form = dlg.querySelector('form');
+  const btn = dlg.querySelector('#sync-connect');
+  const err = dlg.querySelector('#sync-error');
+  form.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    err.textContent = '';
+    btn.disabled = true;
+    btn.textContent = 'Checking…';
+    try {
+      await onConnect(form.elements.url.value, form.elements.token.value || config?.token || '');
+      dlg.close('connected');
+    } catch (e) {
+      err.textContent = e.message || 'Could not connect';
+      btn.disabled = false;
+      btn.textContent = on ? 'Save and sync' : 'Connect';
+    }
+  });
+  dlg.querySelector('#sync-now')?.addEventListener('click', () => { dlg.close('sync'); onSyncNow(); });
+  dlg.querySelector('#sync-off')?.addEventListener('click', () => { dlg.close('off'); onDisconnect(); });
+}

@@ -16,6 +16,11 @@ function writeMirror(v) {
   try { v ? localStorage.setItem(KEY, JSON.stringify(v)) : localStorage.removeItem(KEY); } catch { /* private mode */ }
 }
 
+/** Keep the localStorage mirror in step when sync adopts or ends a running shift. */
+export function setRunningMirror(entry) {
+  writeMirror(entry ? { id: entry.id, start: entry.start, device: entry.device } : null);
+}
+
 export function detectDevice() {
   return /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent) && matchMedia('(pointer: coarse)').matches)
     ? 'iPhone' : 'Mac';

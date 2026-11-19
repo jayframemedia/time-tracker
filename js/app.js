@@ -1,7 +1,7 @@
 // App entry: state, screens, timer interaction.
 import { getAllEntries, putEntry, requestPersistence } from './store.js';
 import {
-  restoreRunning, startTimer, finishTimer, discardTimer, detectDevice,
+  restoreRunning, startTimer, finishTimer, discardTimer, detectDevice, setRunningMirror,
 } from './timer.js';
 import {
   groupHistory, renderHistory, renderHistoryTable, finishedEntries, HISTORY_FILTERS, historyRange,
@@ -13,7 +13,12 @@ import {
 } from './format.js';
 import { loadSettings, saveSettings } from './settings.js';
 import { $, toast, haptic, openExportSheet } from './ui.js';
-import { openEditSheet, openLabelsSheet, askKeepOrDiscard } from './sheets.js';
+import {
+  openEditSheet, openLabelsSheet, askKeepOrDiscard, openSyncSheet,
+} from './sheets.js';
+import {
+  getSyncConfig, getSyncStatus, syncNow, testConnection, connectSync, disconnectSync, agoLabel,
+} from './sync.js';
 import { enableSwipe } from './swipe.js';
 
 const HOLD_MS = 1000;
@@ -43,6 +48,7 @@ const state = {
   settings: loadSettings(),
   nextLabels: readJSON(NEXT_LABELS) || { job: null, employee: null },
   renderedDay: '',
+  otherRunning: [], // open shifts started on another device while this one also runs
 };
 
 const deviceName = () => state.settings.deviceName || detectDevice();
@@ -65,6 +71,12 @@ function minutesSince(fromDate) {
 }
 
 function noticeHtml() {
+  const other = state.otherRunning[0];
+  if (other) {
+    return `<div class="notice danger" role="alert"><b>Another shift is running.</b>
+      It started ${esc(shortDate(other.start))} at ${esc(formatTime(other.start, state.settings.timeFormat))}${other.device ? ` on ${esc(other.device)}` : ''}.
+      <button type="button" class="link" data-discard-other="${esc(other.id)}">Discard it</button></div>`;
+  }
   const r = state.running;
   if (r && Date.now() - Date.parse(r.start) > STALE_MS) {
     return `<div class="notice danger" role="alert"><b>Still running?</b>
@@ -168,6 +180,21 @@ function segmented(key, options, label) {
     <button type="button" data-set="${key}" data-value="${value}" aria-pressed="${String(value) === current}">${text}</button>`).join('')}</div>`;
 }
 
+function syncStatusText() {
+  if (!getSyncConfig()) return 'Off';
+  const st = getSyncStatus();
+  if (st.syncing) return 'Syncing…';
+  if (st.lastError) return 'Problem';
+  return `On · ${agoLabel(st.lastSyncedAt)}`;
+}
+
+function syncStatusHtml() {
+  const config = getSyncConfig();
+  const st = getSyncStatus();
+  const dot = !config ? '' : st.lastError ? 'bad' : 'ok';
+  return `${dot ? `<span class="dot ${dot}" aria-hidden="true"></span>` : ''}${esc(syncStatusText())} ›`;
+}
+
 function settingsView() {
   const s = state.settings;
   return `
@@ -182,7 +209,8 @@ function settingsView() {
           <button type="button" class="switch" role="switch" id="toggle-labels" aria-checked="${s.showLabels}" aria-labelledby="lbl-labels"><span></span></button></div>
         <label class="set"><span>Device name</span>
           <input type="text" class="set-input" id="device-name" value="${esc(s.deviceName)}" placeholder="${esc(detectDevice())}" maxlength="40" autocomplete="off" enterkeyhint="done"></label>
-        <div class="set"><span>Sync between devices</span><span class="muted">Coming soon</span></div>
+        <button type="button" class="set set-btn" id="open-sync"><span>Sync between devices</span>
+          <span class="muted sync-status" id="sync-status">${syncStatusHtml()}</span></button>
         <button type="button" class="set set-btn" id="export-all"><span>Export all data</span><span class="muted">CSV ›</span></button>
       </div>
       <p class="muted small">Rounding changes the times and hours shown and exported. Your recorded times are never changed.</p>
@@ -245,6 +273,95 @@ const replaceEntry = (updated) => {
 async function save(updated) {
   await putEntry(updated);
   replaceEntry(updated);
+  scheduleSync();
+}
+
+// ---------- Sync ----------
+
+let syncTimer = 0;
+/** Sync shortly after a change (debounced), or right away. */
+function scheduleSync(delay = 800) {
+  if (!getSyncConfig()) return;
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(runSync, delay);
+}
+
+async function runSync() {
+  const el = $('#sync-status');
+  if (el) el.textContent = 'Syncing…';
+  const res = await syncNow({ onChange: reloadFromDb });
+  if (!res.pulled && !res.skipped && !res.error) await reconcileOpen();
+  const after = $('#sync-status');
+  if (after) after.innerHTML = syncStatusHtml();
+}
+
+/** Safety net: if the open shifts in storage differ from what's on screen, reload. */
+async function reconcileOpen() {
+  const ids = (list) => list.map((e) => e.id).sort().join(',');
+  const stored = (await getAllEntries()).filter((e) => !e.end && !e.deleted);
+  const shown = [state.running, ...state.otherRunning].filter(Boolean);
+  if (ids(stored) !== ids(shown)) await reloadFromDb();
+}
+
+const typingInView = () => document.activeElement?.matches?.('#view input');
+
+/** Re-read everything after a sync brought in changes, and follow a shift started or ended elsewhere. */
+async function reloadFromDb() {
+  // Changes are already saved; show them once the user isn't mid-action or mid-typing.
+  if (state.busy || holdRaf || typingInView()) { setTimeout(reloadFromDb, 1500); return; }
+  state.entries = await getAllEntries();
+  const open = state.entries
+    .filter((e) => !e.end && !e.deleted)
+    .sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
+  const was = state.running;
+  if (was) {
+    const now = state.entries.find((e) => e.id === was.id);
+    if (!now || now.end || now.deleted) {
+      state.running = null;
+      setRunningMirror(null);
+      state.animateButton = true;
+      toast(now && !now.deleted ? 'Shift finished on your other device' : 'Shift discarded on your other device');
+    } else {
+      state.running = now;
+    }
+  }
+  if (!state.running && open.length) {
+    state.running = open[0];
+    setRunningMirror(open[0]);
+    state.animateButton = true;
+    if (!was) toast(`Shift running · started on ${open[0].device || 'another device'}`);
+  }
+  state.otherRunning = open.filter((e) => e.id !== state.running?.id);
+  render();
+}
+
+function openSync() {
+  const st = getSyncStatus();
+  openSyncSheet({
+    config: getSyncConfig(),
+    statusText: `Last synced ${agoLabel(st.lastSyncedAt)}`,
+    errorText: st.lastError,
+    onConnect: async (url, token) => {
+      const config = await testConnection(url, token);
+      await connectSync(config);
+      state.entries = await getAllEntries();
+      await runSync();
+      const after = getSyncStatus();
+      toast(after.lastError ? `Sync problem: ${after.lastError}` : 'Sync is on');
+      render();
+    },
+    onSyncNow: async () => {
+      await runSync();
+      const after = getSyncStatus();
+      toast(after.lastError ? `Sync problem: ${after.lastError}` : 'Synced');
+      render();
+    },
+    onDisconnect: () => {
+      disconnectSync();
+      toast('Sync is off · your shifts stay on this device');
+      render();
+    },
+  });
 }
 
 async function onStart() {
@@ -256,6 +373,7 @@ async function onStart() {
     state.entries.push(entry);
     state.running = entry;
     state.animateButton = true;
+    scheduleSync(0);
     haptic(15);
     render();
     $('#finish')?.focus({ preventScroll: true });
@@ -280,6 +398,7 @@ async function onFinish() {
       if (choice === 'discard') {
         replaceEntry(await discardTimer(running));
         state.running = null;
+        scheduleSync(0);
         state.animateButton = true;
         haptic(10);
         render();
@@ -290,6 +409,7 @@ async function onFinish() {
     const done = await finishTimer(running);
     replaceEntry(done);
     state.running = null;
+    scheduleSync(0);
     state.animateButton = true;
     state.newId = done.id;
     haptic([20, 60, 30]);
@@ -452,6 +572,19 @@ function onViewClick(ev) {
   if (t.closest('#toggle-labels')) { updateSettings({ showLabels: !state.settings.showLabels }); return; }
   if (t.closest('#export')) { openExport(isWide() && state.filter === 'month' ? 'this-month' : 'this-week'); return; }
   if (t.closest('#export-all')) { openExport('all'); return; }
+  if (t.closest('#open-sync')) { openSync(); return; }
+  const other = t.closest('[data-discard-other]');
+  if (other) {
+    const e = state.entries.find((x) => x.id === other.dataset.discardOther);
+    if (e) {
+      save({ ...e, end: toLocalISO(), deleted: true, updatedAt: toLocalISO() }).then(() => {
+        state.otherRunning = state.otherRunning.filter((x) => x.id !== e.id);
+        render();
+        toast('Other shift discarded');
+      });
+    }
+    return;
+  }
   if (t.closest('#open-settings')) { state.pane = 'settings'; render(); return; }
   if (t.closest('#close-settings')) { state.pane = 'history'; render(); return; }
   if (t.closest('#dismiss-empty')) { ls.set(EMPTY_WARNED, ls.get(LAST_EXPORT) || ''); render(); }
@@ -481,7 +614,14 @@ document.querySelectorAll('.tabbar button').forEach((b) => b.addEventListener('c
 wideQuery.addEventListener('change', () => { cancelHold(false); render(); });
 
 // Coming back from the background: redraw so the counter and "today" are current.
-document.addEventListener('visibilitychange', () => { if (!document.hidden && !holdRaf) render(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) return;
+  if (!holdRaf) render();
+  scheduleSync(0);
+});
+window.addEventListener('online', () => scheduleSync(0));
+// While the app is open, check every 30 s so a shift started on the other device shows up.
+setInterval(() => { if (!document.hidden) scheduleSync(0); }, 30_000);
 
 // ---------- Boot ----------
 
@@ -489,6 +629,7 @@ async function boot() {
   try {
     state.entries = await getAllEntries();
     state.running = await restoreRunning(state.entries);
+    state.otherRunning = state.entries.filter((e) => !e.end && !e.deleted && e.id !== state.running?.id);
   } catch (err) {
     console.error(err);
     toast('Storage unavailable — shifts will not be saved', 5000);
@@ -496,6 +637,7 @@ async function boot() {
   render();
   setInterval(tick, 250);
   requestPersistence();
+  scheduleSync(0);
 }
 
 boot();
