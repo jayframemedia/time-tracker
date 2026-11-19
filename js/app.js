@@ -140,8 +140,8 @@ function timerView() {
       <div class="btn-group">
         <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" aria-hidden="true">
           <circle class="ring-track" cx="${size / 2}" cy="${size / 2}" r="${radius}"/>
-          <circle class="ring" id="ring" data-c="${c.toFixed(2)}" cx="${size / 2}" cy="${size / 2}" r="${radius}"
-            style="stroke:${color};stroke-dasharray:${c.toFixed(2)};stroke-dashoffset:${(c * (1 - p)).toFixed(2)}"/>
+          <circle class="ring${color === 'var(--text)' ? ' holding' : ''}" id="ring" data-c="${c.toFixed(2)}" cx="${size / 2}" cy="${size / 2}" r="${radius}"
+            stroke-dasharray="${c.toFixed(2)}" stroke-dashoffset="${(c * (1 - p)).toFixed(2)}"/>
         </svg>
         ${r
           ? `<button type="button" class="big finish${enter}" id="finish" aria-label="Finish: press and hold for one second"><span>FINISH</span><small>HOLD 1 SEC</small></button>`
@@ -349,8 +349,8 @@ function tick() {
   c.textContent = clock(state.running ? Date.now() - Date.parse(state.running.start) : 0);
   const { p, color } = ringState();
   const circ = Number(ring.dataset.c);
-  ring.style.stroke = color;
-  ring.style.strokeDashoffset = (circ * (1 - p)).toFixed(2);
+  ring.classList.toggle('holding', color === 'var(--text)');
+  ring.setAttribute('stroke-dashoffset', (circ * (1 - p)).toFixed(2));
 }
 
 // ---------- Actions ----------

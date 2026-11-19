@@ -1,7 +1,7 @@
 // Service worker: precache the whole app so it opens offline after the first load.
 // Bump VERSION whenever any app file changes, so installed copies pick up the update
 // (the new version activates the next time the app is opened).
-const VERSION = 'v5';
+const VERSION = 'v6';
 const CACHE = `time-tracker-${VERSION}`;
 
 const ASSETS = [

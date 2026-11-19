@@ -46,6 +46,20 @@ test('every splash image is linked from index.html', () => {
   }
 });
 
+test('content security policy: own files only, sync server allowed, no inline styles to break it', () => {
+  const html = read('index.html');
+  const csp = /http-equiv="Content-Security-Policy" content="([^"]+)"/.exec(html)?.[1];
+  assert.ok(csp, 'CSP meta tag present');
+  assert.match(csp, /default-src 'self'/);
+  assert.match(csp, /script-src 'self'(;|$)/);
+  assert.match(csp, /connect-src 'self' https:\/\/time\.jayframemedia\.com\.au/);
+  assert.match(csp, /object-src 'none'/);
+  assert.doesNotMatch(csp, /unsafe-inline|unsafe-eval/);
+  for (const f of ['index.html', ...readdirSync(new URL('js/', root)).map((n) => `js/${n}`)]) {
+    assert.doesNotMatch(read(f), /\sstyle="|<script>|\son[a-z]+="/, `${f} has an inline style, script or handler the CSP would block`);
+  }
+});
+
 test('index.html loads nothing from other hosts', () => {
   const html = read('index.html');
   assert.doesNotMatch(html, /(src|href)="(https?:)?\/\//);

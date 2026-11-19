@@ -2,6 +2,10 @@
 <html lang="en-AU">
 <head>
   <meta charset="utf-8">
+  <!-- Only this app's own files may run, and it may only talk to itself and the sync server.
+       localhost:8787 is for local testing of the sync server. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://time.jayframemedia.com.au http://localhost:8787 http://127.0.0.1:8787; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'">
+  <meta name="referrer" content="no-referrer">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Time Tracker</title>
   <meta name="description" content="Clock in and out, see your shifts by day, export CSV. Your data stays on your devices.">
@@ -61,6 +65,6 @@
     </div>
   </dialog>
 
-  <noscript><p style="padding:24px">Time Tracker needs JavaScript.</p></noscript>
+  <noscript><p class="noscript">Time Tracker needs JavaScript.</p></noscript>
 </body>
 </html>

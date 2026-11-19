@@ -83,7 +83,9 @@ h2 { margin: 0; font-size: 20px; font-weight: 600; }
 }
 .btn-group svg { position: absolute; inset: 0; transform: rotate(-90deg); pointer-events: none; }
 .ring-track { fill: none; stroke: var(--track); stroke-width: 4px; }
-.ring { fill: none; stroke-width: 6px; stroke-linecap: round; transition: stroke var(--motion); }
+.ring { fill: none; stroke: var(--accent); stroke-width: 6px; stroke-linecap: round; transition: stroke var(--motion); }
+.ring.holding { stroke: var(--text); }
+.noscript { padding: 24px; }
 
 .big {
   position: relative;
