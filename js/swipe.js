@@ -20,7 +20,7 @@ export function enableSwipe(root, { onDelete }) {
 
   root.addEventListener('pointerdown', (ev) => {
     if (ev.pointerType === 'mouse') return;
-    const target = ev.target.closest('.swipe .hrow');
+    const target = ev.target.closest('.swipe:not(.locked) .hrow');
     if (open && target !== open && !ev.target.closest('.swipe-del')) close();
     if (!target) return;
     row = target;

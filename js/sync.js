@@ -7,6 +7,8 @@ import { getAllEntries, putEntry } from './store.js';
 const CONFIG = 'tt.sync';
 const CURSOR = 'tt.sync.cursor';
 const STATUS = 'tt.sync.status';
+const ME = 'tt.sync.me'; // { name, role } from the server
+const LOCK = 'tt.sync.lock'; // staff can't change shifts before this date (YYYY-MM-DD)
 const TIMEOUT_MS = 15_000;
 const BATCH = 500;
 
@@ -75,6 +77,23 @@ export function getSyncStatus() {
 
 const setStatus = (patch) => write(STATUS, { ...(read(STATUS) || {}), ...patch });
 
+/** Who this device syncs as: { name, role: 'owner' | 'staff' }, or null when sync is off. */
+export const getMe = () => (getSyncConfig() ? read(ME) : null);
+export const isOwner = () => getMe()?.role === 'owner';
+/** Staff only: shifts that start before this date are locked. */
+export const getLockBefore = () => (getMe()?.role === 'staff' ? read(LOCK) : null);
+
+/** Remember who we are and the lock date from any server reply; true if either changed. */
+function remember(reply) {
+  let changed = false;
+  if (reply?.user) {
+    const prev = read(ME);
+    if (prev?.name !== reply.user.name || prev?.role !== reply.user.role) { write(ME, reply.user); changed = true; }
+  }
+  if (reply && 'lockBefore' in reply && read(LOCK) !== (reply.lockBefore || null)) { write(LOCK, reply.lockBefore || null); changed = true; }
+  return changed;
+}
+
 // ---------- Network ----------
 
 async function api(config, method, path, body) {
@@ -84,7 +103,11 @@ async function api(config, method, path, body) {
   try {
     res = await fetch(config.url + path, {
       method,
-      headers: { Authorization: `Bearer ${config.token}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+      headers: {
+        Authorization: `Bearer ${config.token}`,
+        'X-Client-Time': String(Date.now()), // lets the server flag a phone whose clock is wrong
+        ...(body ? { 'Content-Type': 'application/json' } : {}),
+      },
       body: body ? JSON.stringify(body) : undefined,
       signal: ctrl.signal,
       cache: 'no-store',
@@ -97,6 +120,7 @@ async function api(config, method, path, body) {
   let data = null;
   try { data = await res.json(); } catch { /* not JSON */ }
   if (res.status === 401) throw new Error('The sync key is wrong');
+  if (res.status === 403) throw new Error('Only the owner can do this');
   if (!res.ok || !data?.ok) throw new Error(`Server error (${data?.error || res.status})`);
   return data;
 }
@@ -106,13 +130,15 @@ export async function testConnection(url, token) {
   const normal = normalizeServerUrl(url);
   if (!normal) throw new Error('Enter the server address, e.g. https://time.example.com');
   if (!token || token.trim().length < 24) throw new Error('The sync key looks too short');
-  await api({ url: normal, token: token.trim() }, 'GET', '/api/ping');
-  return { url: normal, token: token.trim() };
+  const reply = await api({ url: normal, token: token.trim() }, 'GET', '/api/ping');
+  return { url: normal, token: token.trim(), user: reply.user, lockBefore: reply.lockBefore };
 }
 
 /** Save a tested config. Everything local is re-sent and everything remote re-read. */
-export async function connectSync(config) {
-  write(CONFIG, config);
+export async function connectSync({ url, token, user, lockBefore }) {
+  write(CONFIG, { url, token });
+  write(ME, user || null);
+  write(LOCK, lockBefore || null);
   write(CURSOR, 0);
   setStatus({ lastError: null });
   for (const e of await getAllEntries()) {
@@ -122,6 +148,8 @@ export async function connectSync(config) {
 
 export function disconnectSync() {
   write(CONFIG, null);
+  write(ME, null);
+  write(LOCK, null);
   write(CURSOR, null);
   write(STATUS, null);
 }
@@ -149,24 +177,35 @@ async function run(onChange) {
   }
   try {
     // Push
+    let pulled = 0;
+    let changed = false;
     const dirty = (await getAllEntries()).filter(needsPush);
+    const rejected = new Set();
     for (let i = 0; i < dirty.length; i += BATCH) {
-      await api(config, 'POST', '/api/entries', { entries: dirty.slice(i, i + BATCH).map(toWire) });
+      const reply = await api(config, 'POST', '/api/entries', { entries: dirty.slice(i, i + BATCH).map(toWire) });
+      changed = remember(reply) || changed;
+      for (const id of reply.rejected || []) rejected.add(id);
+      // Refused (e.g. a locked week): take the server's copy back so this device matches.
+      for (const r of reply.restore || []) { await putEntry({ ...r, syncedAt: r.updatedAt }); pulled += 1; }
     }
     if (dirty.length) {
       const now = new Map((await getAllEntries()).map((e) => [e.id, e]));
       for (const sent of dirty) {
         const cur = now.get(sent.id);
-        if (cur && cur.updatedAt === sent.updatedAt) await putEntry({ ...cur, syncedAt: cur.updatedAt });
+        if (rejected.has(sent.id)) {
+          if (cur && cur.syncedAt !== cur.updatedAt) await putEntry({ ...cur, syncedAt: cur.updatedAt }); // don't retry forever
+        } else if (cur && cur.updatedAt === sent.updatedAt) {
+          await putEntry({ ...cur, syncedAt: cur.updatedAt });
+        }
       }
     }
 
     // Pull
     let cursor = Number(read(CURSOR)) || 0;
-    let pulled = 0;
     let more = true;
     while (more) {
       const page = await api(config, 'GET', `/api/entries?since=${cursor}`);
+      changed = remember(page) || changed;
       const local = new Map((await getAllEntries()).map((e) => [e.id, e]));
       for (const remote of page.entries) {
         const mine = local.get(remote.id);
@@ -184,10 +223,35 @@ async function run(onChange) {
     }
 
     setStatus({ lastSyncedAt: Date.now(), lastError: null });
-    if (pulled) await onChange?.();
-    return { pushed: dirty.length, pulled };
+    if (pulled || changed) await onChange?.();
+    return { pushed: dirty.length, pulled, rejected: rejected.size };
   } catch (err) {
     setStatus({ lastError: err.message || 'Sync failed' });
     return { error: err.message };
   }
+}
+
+// ---------- Owner: Team view (always live; other people's shifts aren't stored on this device) ----------
+
+/** Everyone's shifts starting in [from, to] (YYYY-MM-DD), users, who's clocked in, lock date. */
+export async function teamFetch(from, to) {
+  const config = getSyncConfig();
+  if (!config) throw new Error('Sync is off');
+  const reply = await api(config, 'GET', `/api/team/entries?from=${from}&to=${to}`);
+  remember(reply);
+  return reply;
+}
+
+/** Save corrections to existing shifts (anyone's). */
+export async function teamSave(entries) {
+  const config = getSyncConfig();
+  const reply = await api(config, 'POST', '/api/team/entries', { entries: entries.map(toWire) });
+  if (reply.rejected?.length) throw new Error('The server refused that change');
+  return reply;
+}
+
+/** Lock staff edits to shifts before `before` (YYYY-MM-DD), or null to unlock. */
+export async function teamLock(before) {
+  const config = getSyncConfig();
+  return (await api(config, 'POST', '/api/team/lock', { before })).lockBefore;
 }

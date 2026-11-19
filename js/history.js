@@ -70,6 +70,10 @@ export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&a
 
 const labelsOf = (e) => [e.job, e.employee].filter(Boolean).join(' · ');
 
+const LOCK = '<svg class="lock-ico" width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
+/** Staff: shifts that start before the owner's lock date can't be changed. */
+const isLocked = (dayKey, lockedBefore) => !!lockedBefore && dayKey < lockedBefore;
+
 /** "16 Nov 2026" */
 const fullDate = (d) => `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
 
@@ -77,7 +81,7 @@ const fullDate = (d) => `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear(
  * iPhone list. Rows: "Mon 16 Nov | 8:00 am | 5:00 pm | 9.00 h", plus a "Day total" row for
  * multi-shift days. Each row is a button (tap → edit) inside a swipe container (swipe left → delete).
  */
-export function renderHistory(weeks, { timeFormat = '12', rounding = 0, showLabels = false, newId = null } = {}) {
+export function renderHistory(weeks, { timeFormat = '12', rounding = 0, showLabels = false, newId = null, lockedBefore = null } = {}) {
   if (!weeks.length) {
     return '<p class="empty muted">No shifts yet. Tap Start on the Timer tab.</p>';
   }
@@ -89,15 +93,16 @@ export function renderHistory(weeks, { timeFormat = '12', rounding = 0, showLabe
         const tin = formatTime(t.start, timeFormat);
         const tout = formatTime(t.end, timeFormat);
         const labels = showLabels ? labelsOf(e) : '';
+        const locked = isLocked(day.key, lockedBefore);
         return `
-        <div class="swipe${e.id === newId ? ' new' : ''}" data-id="${esc(e.id)}">
-          <button type="button" class="swipe-del" data-delete="${esc(e.id)}" tabindex="-1" aria-hidden="true">Delete</button>
-          <button type="button" class="hrow" data-edit="${esc(e.id)}"
-            aria-label="Edit shift: ${esc(shortDate(day.date))}, ${esc(tin)} to ${esc(tout)}, ${hours} hours${labels ? `, ${esc(labels)}` : ''}">
+        <div class="swipe${e.id === newId ? ' new' : ''}${locked ? ' locked' : ''}" data-id="${esc(e.id)}">
+          ${locked ? '' : `<button type="button" class="swipe-del" data-delete="${esc(e.id)}" tabindex="-1" aria-hidden="true">Delete</button>`}
+          <button type="button" class="hrow" ${locked ? 'data-locked' : `data-edit="${esc(e.id)}"`}
+            aria-label="${locked ? 'Locked shift' : 'Edit shift'}: ${esc(shortDate(day.date))}, ${esc(tin)} to ${esc(tout)}, ${hours} hours${labels ? `, ${esc(labels)}` : ''}">
             <span class="d">${i ? '' : esc(shortDate(day.date))}</span>
             <span>${esc(tin)}</span>
             <span>${esc(tout)}</span>
-            <span class="h">${hours} h</span>
+            <span class="h">${locked ? LOCK : ''}${hours} h</span>
             ${labels ? `<span class="sub">${esc(labels)}</span>` : ''}
           </button>
         </div>`;
@@ -124,7 +129,7 @@ export function renderHistory(weeks, { timeFormat = '12', rounding = 0, showLabe
 const TRASH = '<svg class="ico" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12"/><path d="M9 7V4h6v3"/></svg>';
 
 /** Mac table: "16 Nov 2026 | Monday | 8:00 am | 5:00 pm | 9.00", week header rows, delete button on hover. */
-export function renderHistoryTable(weeks, { timeFormat = '12', rounding = 0, showLabels = false, newId = null } = {}) {
+export function renderHistoryTable(weeks, { timeFormat = '12', rounding = 0, showLabels = false, newId = null, lockedBefore = null } = {}) {
   if (!weeks.length) {
     return '<p class="empty muted">No shifts in this range. Press Start to clock in.</p>';
   }
@@ -134,15 +139,16 @@ export function renderHistoryTable(weeks, { timeFormat = '12', rounding = 0, sho
       const shiftRows = day.shifts.map((e) => {
         const t = shiftTimes(e, rounding);
         const labels = showLabels ? labelsOf(e) : '';
+        const locked = isLocked(day.key, lockedBefore);
         return `
-          <tr class="shift${e.id === newId ? ' new' : ''}" data-edit="${esc(e.id)}" tabindex="0"
-            aria-label="Edit shift: ${esc(fullDate(day.date))}, ${esc(formatTime(t.start, timeFormat))} to ${esc(formatTime(t.end, timeFormat))}">
+          <tr class="shift${e.id === newId ? ' new' : ''}${locked ? ' locked' : ''}" ${locked ? 'data-locked' : `data-edit="${esc(e.id)}"`} tabindex="0"
+            aria-label="${locked ? 'Locked shift' : 'Edit shift'}: ${esc(fullDate(day.date))}, ${esc(formatTime(t.start, timeFormat))} to ${esc(formatTime(t.end, timeFormat))}">
             <td>${esc(fullDate(day.date))}</td>
             <td>${esc(longDay(day.date))}${labels ? `<span class="sub">${esc(labels)}</span>` : ''}</td>
             <td>${esc(formatTime(t.start, timeFormat))}</td>
             <td>${esc(formatTime(t.end, timeFormat))}</td>
-            <td>${formatHours(entryMinutes(e, rounding))}</td>
-            <td class="act"><button type="button" class="row-del" data-delete="${esc(e.id)}" aria-label="Delete shift ${esc(fullDate(day.date))} ${esc(formatTime(t.start, timeFormat))}">${TRASH}</button></td>
+            <td>${locked ? LOCK : ''}${formatHours(entryMinutes(e, rounding))}</td>
+            <td class="act">${locked ? '' : `<button type="button" class="row-del" data-delete="${esc(e.id)}" aria-label="Delete shift ${esc(fullDate(day.date))} ${esc(formatTime(t.start, timeFormat))}">${TRASH}</button>`}</td>
           </tr>`;
       }).join('');
       const total = day.shifts.length > 1

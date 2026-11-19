@@ -96,6 +96,19 @@ test('Mac history filters', () => {
   assert.equal(filterEntries(list, null).length, 2);
 });
 
+test('staff: shifts before the lock date are locked (no edit, no delete)', () => {
+  const html = renderHistory(groupHistory(sample()), { lockedBefore: '2026-11-16' });
+  const mon16 = html.slice(html.indexOf('Mon 16 Nov') - 400, html.indexOf('Mon 16 Nov'));
+  assert.match(mon16, /data-edit=/, 'the lock day itself is still editable');
+  const fri13 = html.slice(html.indexOf('Fri 13 Nov') - 500, html.indexOf('Fri 13 Nov'));
+  assert.match(fri13, /swipe locked/);
+  assert.match(fri13, /data-locked/);
+  assert.doesNotMatch(fri13, /data-delete|data-edit/);
+  const table = renderHistoryTable(groupHistory(sample()), { lockedBefore: '2026-11-16' });
+  assert.equal((table.match(/data-locked/g) || []).length, 5);
+  assert.equal((table.match(/data-delete=/g) || []).length, 4);
+});
+
 test('empty state', () => {
   assert.match(renderHistory([]), /No shifts yet\. Tap Start on the Timer tab\./);
 });

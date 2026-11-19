@@ -8,7 +8,7 @@ const CLOSE_ICON = '<svg class="ico" width="20" height="20" viewBox="0 0 24 24" 
 const DAY_MS = 24 * 3600 * 1000;
 
 /** Create a modal sheet, show it, and remove it from the page when it closes. */
-function openSheet(id, innerHtml, { onClose } = {}) {
+export function openSheet(id, innerHtml, { onClose } = {}) {
   document.getElementById(id)?.remove();
   const dlg = document.createElement('dialog');
   dlg.className = 'sheet';
@@ -24,7 +24,7 @@ function openSheet(id, innerHtml, { onClose } = {}) {
   return dlg;
 }
 
-const header = (id, title) => `
+export const header = (id, title) => `
   <div class="row-between center">
     <h2 id="${id}-title">${esc(title)}</h2>
     <button type="button" class="icon-btn" data-close aria-label="Close">${CLOSE_ICON}</button>

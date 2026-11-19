@@ -9,7 +9,7 @@ import {
 } from './history.js';
 import {
   clock, shortDate, formatTime, isoDate, sumMinutes, formatHours, durationLabel, entryMinutes,
-  toLocalISO, startOfWeek,
+  toLocalISO, startOfWeek, addDays,
 } from './format.js';
 import { loadSettings, saveSettings } from './settings.js';
 import { $, toast, haptic, openExportSheet } from './ui.js';
@@ -18,7 +18,11 @@ import {
 } from './sheets.js';
 import {
   getSyncConfig, getSyncStatus, syncNow, testConnection, connectSync, disconnectSync, agoLabel,
+  getMe, isOwner, getLockBefore, teamFetch, teamSave, teamLock,
 } from './sync.js';
+import {
+  renderTeam, renderPerson, weekRange, openLockSheet, openTeamExportSheet,
+} from './team.js';
 import { enableSwipe } from './swipe.js';
 
 const HOLD_MS = 1000;
@@ -36,8 +40,9 @@ const ls = {
 const readJSON = (k) => { try { return JSON.parse(ls.get(k)) || null; } catch { return null; } };
 
 const state = {
-  tab: 'timer', // iPhone tabs: timer | history | settings
-  pane: 'history', // Mac right pane: history | settings
+  tab: 'timer', // iPhone tabs: timer | history | settings | team (owner)
+  pane: 'history', // Mac right pane: history | settings | team (owner)
+  team: { weekStart: startOfWeek(new Date(), loadSettings().weekStartsOn), data: null, loading: false, error: null, person: null, key: '' },
   filter: 'two-weeks', // Mac history filter
   entries: [],
   running: null, // open entry
@@ -58,6 +63,7 @@ const view = () => ({
   rounding: state.settings.rounding,
   weekStartsOn: state.settings.weekStartsOn,
   showLabels: state.settings.showLabels,
+  lockedBefore: getLockBefore(),
 });
 
 // ---------- Views ----------
@@ -168,6 +174,7 @@ function macHistoryView() {
       <div class="pills" role="group" aria-label="Show">
         ${HISTORY_FILTERS.map((f) => `<button type="button" class="pill" data-filter="${f.id}" aria-pressed="${f.id === state.filter}">${f.label}</button>`).join('')}
         <button type="button" class="export" id="export">${ICON_EXPORT}Export CSV</button>
+        ${isOwner() ? '<button type="button" class="export" id="open-team">Team</button>' : ''}
         <button type="button" class="icon-btn gear" id="open-settings" aria-label="Settings">${ICON_GEAR}</button>
       </div>
     </div>
@@ -195,6 +202,15 @@ function syncStatusHtml() {
   return `${dot ? `<span class="dot ${dot}" aria-hidden="true"></span>` : ''}${esc(syncStatusText())} ›`;
 }
 
+function aboutText() {
+  const me = getMe();
+  if (!me) return '<p class="muted small">Your shifts are stored on this device only.</p>';
+  if (me.role === 'owner') {
+    return `<p class="muted small">Syncing as <b>${esc(me.name)}</b> (owner). You can see everyone’s hours in Team.</p>`;
+  }
+  return `<p class="muted small">Syncing as <b>${esc(me.name)}</b>. Your shift times, job labels and device name are stored on your employer’s server, where the owner can see and correct them. Weeks the owner has locked can’t be changed.</p>`;
+}
+
 function settingsView() {
   const s = state.settings;
   return `
@@ -214,8 +230,76 @@ function settingsView() {
         <button type="button" class="set set-btn" id="export-all"><span>Export all data</span><span class="muted">CSV ›</span></button>
       </div>
       <p class="muted small">Rounding changes the times and hours shown and exported. Your recorded times are never changed.</p>
-      <p class="muted small center-text">Open source · MIT licence · Your data stays on your devices</p>
+      ${aboutText()}
+      <p class="muted small center-text">Open source · MIT licence</p>
     </div>`;
+}
+
+function teamView() {
+  const t = state.team;
+  const key = `${isoDate(t.weekStart)}`;
+  if (t.key !== key && !t.loading) loadTeam();
+  const opts = { ...view(), thisWeekStart: startOfWeek(new Date(), state.settings.weekStartsOn), wide: isWide() };
+  return t.person && t.data ? renderPerson(t, t.person, opts) : renderTeam(t, opts);
+}
+
+const teamVisible = () => isOwner() && (isWide() ? state.pane === 'team' : state.tab === 'team');
+
+/** Load everyone's shifts for the Team week (live from the server). */
+async function loadTeam() {
+  const t = state.team;
+  const { from, to } = weekRange(t.weekStart);
+  t.loading = true;
+  t.key = from;
+  try {
+    const data = await teamFetch(from, to);
+    if (t.key !== from) return; // the week changed while loading
+    t.data = data;
+    t.error = null;
+  } catch (err) {
+    t.error = err.message;
+  } finally {
+    t.loading = false;
+  }
+  if (teamVisible() && !typingInView()) render();
+}
+
+function teamEdit(id) {
+  const e = state.team.data?.entries.find((x) => x.id === id);
+  if (!e) return;
+  if (state.entries.some((x) => x.id === id)) { editShift(id); return; } // your own shift: edit it like any other
+  if (!e.end) { toast('Still clocked in — it can be corrected after Finish'); return; }
+  const name = state.team.data.users.find((u) => u.id === e.userId)?.name || 'They';
+  const clean = ({ userId, clockSkewMs, original, ...rest }) => rest; // eslint-disable-line no-unused-vars
+  openEditSheet(clean(e), {
+    entries: state.team.data.entries,
+    onSave: async ({ start, end, job, employee }) => {
+      const updated = {
+        ...clean(e),
+        start: start ? toLocalISO(start) : e.start,
+        end: end ? toLocalISO(end) : e.end,
+        job,
+        employee,
+        edited: e.edited || !!(start || end),
+        updatedAt: toLocalISO(),
+      };
+      try { await teamSave([updated]); } catch (err) { toast(err.message); return; }
+      toast(`Updated · ${name} sees it next sync`);
+      loadTeam();
+    },
+    onDelete: async () => {
+      const gone = { ...clean(e), deleted: true, updatedAt: toLocalISO() };
+      try { await teamSave([gone]); } catch (err) { toast(err.message); return; }
+      loadTeam();
+      toast('Shift deleted', {
+        action: 'Undo',
+        onAction: async () => {
+          try { await teamSave([{ ...gone, deleted: false, updatedAt: toLocalISO() }]); } catch (err) { toast(err.message); return; }
+          loadTeam();
+        },
+      });
+    },
+  });
 }
 
 // ---------- Render ----------
@@ -225,23 +309,28 @@ let swipe;
 function render() {
   const el = $('#view');
   const wide = isWide();
+  const owner = isOwner();
   document.body.classList.toggle('wide', wide);
+  document.body.classList.toggle('owner', owner);
+  if (!owner && state.tab === 'team') state.tab = 'timer';
+  if (!owner && state.pane === 'team') state.pane = 'history';
   const scroller = wide ? el.querySelector('.right') : el;
   const keepScroll = scroller ? scroller.scrollTop : 0;
   if (wide) {
     el.innerHTML = `
       <div class="split">
         <section class="left" aria-label="Timer">${timerView()}</section>
-        <section class="right" aria-label="${state.pane === 'settings' ? 'Settings' : 'History'}">
-          ${state.pane === 'settings' ? settingsView() : macHistoryView()}</section>
+        <section class="right" aria-label="${{ settings: 'Settings', team: 'Team' }[state.pane] || 'History'}">
+          ${state.pane === 'settings' ? settingsView() : state.pane === 'team' ? teamView() : macHistoryView()}</section>
       </div>`;
     const right = el.querySelector('.right');
     if (right) right.scrollTop = keepScroll;
   } else {
-    el.innerHTML = state.tab === 'timer' ? timerView() : state.tab === 'history' ? historyView() : settingsView();
+    el.innerHTML = { timer: timerView, history: historyView, settings: settingsView, team: teamView }[state.tab]();
     el.scrollTop = keepScroll;
   }
   document.querySelectorAll('.tabbar button').forEach((b) => {
+    if (b.dataset.tab === 'team') b.hidden = !owner;
     if (b.dataset.tab === state.tab) b.setAttribute('aria-current', 'page');
     else b.removeAttribute('aria-current');
   });
@@ -293,6 +382,7 @@ async function runSync() {
   if (!res.pulled && !res.skipped && !res.error) await reconcileOpen();
   const after = $('#sync-status');
   if (after) after.innerHTML = syncStatusHtml();
+  if (teamVisible() && !state.team.loading) loadTeam();
 }
 
 /** Safety net: if the open shifts in storage differ from what's on screen, reload. */
@@ -368,7 +458,8 @@ async function onStart() {
   if (state.busy || state.running) return;
   state.busy = true;
   try {
-    const labels = state.settings.showLabels ? state.nextLabels : {};
+    const labels = state.settings.showLabels ? { ...state.nextLabels } : {};
+    if (!labels.employee && getMe()?.name) labels.employee = getMe().name; // staff name on every shift
     const entry = await startTimer(deviceName(), labels);
     state.entries.push(entry);
     state.running = entry;
@@ -445,6 +536,8 @@ async function deleteShift(id) {
 function editShift(id) {
   const entry = state.entries.find((e) => e.id === id);
   if (!entry || !entry.end) return;
+  const lock = getLockBefore();
+  if (lock && isoDate(new Date(entry.start)) < lock) { toast('This week is locked by the owner'); return; }
   openEditSheet(entry, {
     entries: state.entries,
     onSave: async ({ start, end, job, employee }) => {
@@ -486,6 +579,7 @@ function editLabels() {
 
 function updateSettings(patch) {
   state.settings = saveSettings({ ...state.settings, ...patch });
+  if ('weekStartsOn' in patch) state.team = { ...state.team, weekStart: startOfWeek(state.team.weekStart, state.settings.weekStartsOn), data: null, key: '' };
   render();
 }
 
@@ -560,6 +654,8 @@ function onViewClick(ev) {
   if (del) { ev.stopPropagation(); deleteShift(del.dataset.delete); return; }
   const edit = t.closest('[data-edit]');
   if (edit) { editShift(edit.dataset.edit); return; }
+  if (t.closest('[data-locked]')) { toast('This week is locked by the owner'); return; }
+  if (onTeamClick(t)) return;
   if (t.closest('[data-labels]')) { editLabels(); return; }
   const set = t.closest('[data-set]');
   if (set) {
@@ -590,7 +686,59 @@ function onViewClick(ev) {
   if (t.closest('#dismiss-empty')) { ls.set(EMPTY_WARNED, ls.get(LAST_EXPORT) || ''); render(); }
 }
 
+/** Team view clicks (owner). Returns true if handled. */
+function onTeamClick(t) {
+  const team = state.team;
+  const teamEditBtn = t.closest('[data-team-edit]');
+  if (teamEditBtn) { teamEdit(teamEditBtn.dataset.teamEdit); return true; }
+  const person = t.closest('[data-person]');
+  if (person) { team.person = Number(person.dataset.person); render(); $('#view').scrollTop = 0; return true; }
+  if (t.closest('[data-person-back]')) { team.person = null; render(); return true; }
+  const week = t.closest('[data-week]');
+  if (week) {
+    team.weekStart = addDays(team.weekStart, 7 * Number(week.dataset.week));
+    team.data = null;
+    team.key = '';
+    render();
+    return true;
+  }
+  if (t.closest('#team-refresh')) { loadTeam(); toast('Refreshing…'); return true; }
+  if (t.closest('#open-team')) { state.pane = 'team'; render(); return true; }
+  if (t.closest('#close-team')) { state.pane = 'history'; render(); return true; }
+  if (t.closest('#team-lock')) {
+    openLockSheet({
+      lockBefore: team.data?.lockBefore,
+      defaultDate: isoDate(startOfWeek(new Date(), state.settings.weekStartsOn)),
+      onLock: async (before) => {
+        await teamLock(before);
+        toast(before ? `Locked before ${shortDate(before)}` : 'All weeks unlocked');
+        loadTeam();
+      },
+    });
+    return true;
+  }
+  const exp = t.closest('#team-export');
+  if (exp && team.data) {
+    openTeamExportSheet({
+      users: team.data.users,
+      personId: exp.dataset.personExport ? Number(exp.dataset.personExport) : null,
+      weekStartsOn: state.settings.weekStartsOn,
+      rounding: state.settings.rounding,
+      fetchRange: teamFetch,
+    });
+    return true;
+  }
+  return false;
+}
+
 function onViewKey(ev) {
+  const personRow = ev.target.closest?.('tr[data-person]');
+  if (personRow && ev.target === personRow && (ev.key === 'Enter' || ev.key === ' ')) {
+    ev.preventDefault();
+    state.team.person = Number(personRow.dataset.person);
+    render();
+    return;
+  }
   const row = ev.target.closest?.('tr[data-edit]');
   if (!row || ev.target !== row) return;
   if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); editShift(row.dataset.edit); }
