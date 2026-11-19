@@ -12,6 +12,7 @@ An open-source, in-house time tracker for iPhone and Mac: a big orange Start but
 | `docs/DESIGN.md` | Visual spec: layout sizes, states, components, Mac layout |
 | `docs/DECISIONS.md` | Choices already made (with defaults) and ones still open |
 | `docs/SYNC.md` | Phase 3 sync: how it works and the API |
+| `docs/MULTI-USER.md` | Phase 5 plan: staff with their own keys, owner Team view |
 | `design/tokens.css` | Colours, type, spacing — use exactly |
 | `design/mockup.html` | Working iPhone reference prototype — open in a browser |
 | `design/mac-reference.html` | Mac layout reference — open in a browser |

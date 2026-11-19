@@ -53,6 +53,22 @@ Phase 3: Google Sheets sync per docs/SYNC.md.
 Test with curl first, then on both devices.
 ```
 
+## Phase 5 — Staff: multiple users + owner Team view
+
+```text
+Phase 5: staff. Read docs/MULTI-USER.md (plan + decisions) first.
+- Server: users table (owner/staff), personal keys (hashed), admin.mjs add/list/revoke/new-key,
+  every shift tied to its user, staff only see their own, edit history, week locking,
+  server receive-times with clock-drift flag, owner-only /api/team/* endpoints,
+  monthly backups kept indefinitely. Migrate: current SYNC_TOKEN becomes the owner key.
+- App: Employee auto-filled from the user's name; padlock on locked weeks; About text on what's stored.
+- Owner app: Team tab (iPhone) / pane (Mac): week table per person (Mon–Sun + total), drill into a
+  person's shifts with edit history and clock flags, who's clocked in now, lock weeks, CSV export
+  for everyone or one person.
+- Tests for user isolation (staff can never read or change another's shift), locking and history.
+Then give me the server upgrade steps and a test checklist using a test staff key on a second device.
+```
+
 ## Phase 4 — Native upgrade (only if needed later)
 
 ```text
