@@ -68,7 +68,8 @@ entry = {
 
 ## Workflow
 - Work one phase at a time, using the prompts in `KICKOFF.md`. At the end of each phase, stop and list exactly what Jason should test on his iPhone and Mac.
-- Keep modules small: `store.js`, `timer.js`, `history.js`, `csv.js`, `ui.js`, `sync.js`, plus `format.js`, `settings.js`, `sheets.js`, `swipe.js`, `app.js`.
+- Keep modules small (each under ~300 lines). Pure logic: `format.js`, `csv.js`, `history.js`, `settings.js`, `team.js` (render helpers). Storage/sync: `store.js`, `timer.js`, `sync.js`. App: `state.js` (shared state), `views.js` (screen HTML), `actions.js` (your shifts), `hold.js`, `syncing.js`, `teamActions.js`, `ui.js`, `sheets.js`, `swipe.js`, and `app.js` (render, events, boot, updates).
+- Before committing: `npm test` (unit), `npx eslint .`, and `npx playwright test` (browser tests, iPhone + Mac). CI runs all three.
 - Bump `VERSION` in `sw.js` whenever an app file changes, and list any new app file in its `ASSETS`.
 - Put date/hours/CSV formatting in pure functions and test them with `node --test` (no dependencies).
 - Use clear commit messages, one commit per meaningful step.
