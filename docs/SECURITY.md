@@ -32,6 +32,13 @@ How Time Tracker protects data, and what still depends on you. Reviewed 2026-11-
 - Only the owner's Team view shows other people's shifts. It loads live and doesn't store them on the owner's devices.
 - **Record keeping** (not legal advice): Fair Work generally requires hours records to be kept for 7 years and given to the employee on request. Export a person's CSV from Team for that.
 
+## Known open items
+- **SSH (checked 2026-11-19):** the server still allows root sign-in with a password (`permitrootlogin yes`, `passwordauthentication yes`). Automatic security updates are on. Recommended when convenient:
+  1. Create an SSH key on the Mac and copy it to the server.
+  2. Test that key sign-in works.
+  3. Then set `PasswordAuthentication no` and `PermitRootLogin prohibit-password` in `/etc/ssh/sshd_config.d/00-hardening.conf`. The file name must sort before `50-cloud-init.conf`.
+  Steps: `server/README.md` → Keeping the server healthy.
+
 ## Your part
 - **Keep secrets safe:** keep `.env` (keys, tunnel token, R2 credentials) and SSH access to the server private. Hand out staff keys privately.
 - **Keep the server updated:** automatic security updates on, SSH keys rather than passwords, and an Ubuntu upgrade before April 2027 (`server/README.md` → Keeping the server healthy).
