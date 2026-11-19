@@ -53,10 +53,10 @@ export async function restoreRunning(entries) {
   return null;
 }
 
-export async function startTimer(device) {
+export async function startTimer(device, { job = null, employee = null } = {}) {
   const now = toLocalISO();
   const entry = {
-    id: crypto.randomUUID(), start: now, end: null, employee: null, job: null,
+    id: crypto.randomUUID(), start: now, end: null, employee: employee || null, job: job || null,
     device, edited: false, deleted: false, createdAt: now, updatedAt: now,
   };
   writeMirror({ id: entry.id, start: entry.start, device }); // synchronous, so it's durable first
@@ -70,4 +70,13 @@ export async function finishTimer(entry) {
   await putEntry(done);
   writeMirror(null);
   return done;
+}
+
+/** Throw away a running shift (e.g. under a minute). Soft delete, so sync can see it. */
+export async function discardTimer(entry) {
+  const now = toLocalISO();
+  const gone = { ...entry, end: now, deleted: true, updatedAt: now };
+  await putEntry(gone);
+  writeMirror(null);
+  return gone;
 }

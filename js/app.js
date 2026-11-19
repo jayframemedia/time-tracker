@@ -1,48 +1,75 @@
 // App entry: state, screens, timer interaction.
-import { getAllEntries, requestPersistence } from './store.js';
-import { restoreRunning, startTimer, finishTimer, detectDevice } from './timer.js';
-import { groupHistory, renderHistory, finishedEntries } from './history.js';
+import { getAllEntries, putEntry, requestPersistence } from './store.js';
 import {
-  clock, shortDate, time12, isoDate, sumMinutes, formatHours, durationLabel, entryMinutes,
+  restoreRunning, startTimer, finishTimer, discardTimer, detectDevice,
+} from './timer.js';
+import {
+  groupHistory, renderHistory, renderHistoryTable, finishedEntries, HISTORY_FILTERS, historyRange,
+  filterEntries, esc,
+} from './history.js';
+import {
+  clock, shortDate, formatTime, isoDate, sumMinutes, formatHours, durationLabel, entryMinutes,
+  toLocalISO, startOfWeek,
 } from './format.js';
-import { $, esc, toast, haptic, openExportSheet } from './ui.js';
+import { loadSettings, saveSettings } from './settings.js';
+import { $, toast, haptic, openExportSheet } from './ui.js';
+import { openEditSheet, openLabelsSheet, askKeepOrDiscard } from './sheets.js';
+import { enableSwipe } from './swipe.js';
 
-const RING_C = 2 * Math.PI * 124; // 779.11 — ring radius from docs/DESIGN.md
 const HOLD_MS = 1000;
 const STALE_MS = 12 * 3600 * 1000; // "Still running?" after 12 h
+const SHORT_MS = 60 * 1000; // "Keep or discard?" under 60 s
 const LAST_EXPORT = 'tt.lastExport';
 const EMPTY_WARNED = 'tt.emptyWarned';
-
-const state = {
-  tab: 'timer',
-  entries: [],
-  running: null, // open entry
-  hold: 0, // 0..1 while FINISH is held
-  busy: false,
-  animateButton: false, // fade/scale the big button in only when it changes
-  device: detectDevice(),
-  renderedDay: '',
-};
+const NEXT_LABELS = 'tt.nextLabels';
+const wideQuery = matchMedia('(min-width: 900px)');
 
 const ls = {
   get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
   set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* private mode */ } },
 };
+const readJSON = (k) => { try { return JSON.parse(ls.get(k)) || null; } catch { return null; } };
+
+const state = {
+  tab: 'timer', // iPhone tabs: timer | history | settings
+  pane: 'history', // Mac right pane: history | settings
+  filter: 'two-weeks', // Mac history filter
+  entries: [],
+  running: null, // open entry
+  hold: 0, // 0..1 while FINISH is held
+  busy: false,
+  animateButton: false, // fade/scale the big button in only when it changes
+  newId: null, // fade in this History row once
+  settings: loadSettings(),
+  nextLabels: readJSON(NEXT_LABELS) || { job: null, employee: null },
+  renderedDay: '',
+};
+
+const deviceName = () => state.settings.deviceName || detectDevice();
+const isWide = () => wideQuery.matches;
+const view = () => ({
+  timeFormat: state.settings.timeFormat,
+  rounding: state.settings.rounding,
+  weekStartsOn: state.settings.weekStartsOn,
+  showLabels: state.settings.showLabels,
+});
 
 // ---------- Views ----------
 
 const ICON_EXPORT = '<svg class="ico" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11"/><path d="M7 10l5 5 5-5"/><path d="M5 20h14"/></svg>';
+const ICON_GEAR = '<svg class="ico" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h9"/><path d="M17 6h3"/><circle cx="15" cy="6" r="2"/><path d="M4 12h3"/><path d="M11 12h9"/><circle cx="9" cy="12" r="2"/><path d="M4 18h11"/><path d="M19 18h1"/><circle cx="17" cy="18" r="2"/></svg>';
 
-function todayMinutes() {
-  const today = isoDate(new Date());
-  return sumMinutes(finishedEntries(state.entries).filter((e) => isoDate(new Date(e.start)) === today));
+function minutesSince(fromDate) {
+  const from = isoDate(fromDate);
+  return sumMinutes(finishedEntries(state.entries).filter((e) => isoDate(new Date(e.start)) >= from), state.settings.rounding);
 }
 
 function noticeHtml() {
   const r = state.running;
   if (r && Date.now() - Date.parse(r.start) > STALE_MS) {
     return `<div class="notice danger" role="alert"><b>Still running?</b>
-      This shift started ${esc(shortDate(r.start))} at ${esc(time12(r.start))}. Hold Finish if you forgot to clock out.</div>`;
+      This shift started ${esc(shortDate(r.start))} at ${esc(formatTime(r.start, state.settings.timeFormat))}.
+      Hold Finish, then tap the shift in History to fix the clock-out time.</div>`;
   }
   const lastExport = ls.get(LAST_EXPORT);
   if (!state.entries.length && lastExport && ls.get(EMPTY_WARNED) !== lastExport) {
@@ -54,6 +81,9 @@ function noticeHtml() {
   return '';
 }
 
+/** Ring geometry: iPhone 264 px ring (r 124), Mac 232 px ring (r 108). */
+const ringGeom = () => (isWide() ? { size: 232, r: 108 } : { size: 264, r: 124 });
+
 function ringState() {
   const r = state.running;
   if (!r) return { p: 0, color: 'var(--accent)' };
@@ -62,98 +92,167 @@ function ringState() {
   return { p: (elapsed % 3_600_000) / 3_600_000, color: 'var(--accent)' };
 }
 
+function labelsChips() {
+  if (!state.settings.showLabels) return '';
+  const src = state.running || state.nextLabels;
+  const chip = (name, value) => `<button type="button" class="chip${value ? ' set' : ''}" data-labels>
+      <span class="chip-k">${name}</span><span class="chip-v">${esc(value || 'Add')}</span></button>`;
+  return `<div class="chips" role="group" aria-label="Job and employee">${chip('Job', src.job)}${chip('Employee', src.employee)}</div>`;
+}
+
 function timerView() {
   const r = state.running;
   const now = new Date();
   const elapsed = r ? Date.now() - Date.parse(r.start) : 0;
   const { p, color } = ringState();
+  const { size, r: radius } = ringGeom();
+  const c = 2 * Math.PI * radius;
   const enter = state.animateButton ? ' enter' : '';
   state.animateButton = false;
+  const card = isWide()
+    ? `<span class="muted">This week</span><b>${formatHours(minutesSince(startOfWeek(now, state.settings.weekStartsOn)))} h</b>`
+    : `<span class="muted">Logged today</span><b>${formatHours(minutesSince(now))} h</b>`;
   return `
-    <div class="timer">
+    <div class="timer${state.settings.showLabels ? ' has-chips' : ''}">
       ${noticeHtml()}
       <div class="row-between"><div class="label">Today</div><div class="muted">${esc(shortDate(now))}</div></div>
       <div class="counter" id="counter" role="timer" aria-live="off">${clock(elapsed)}</div>
-      <div class="subline muted">${r ? `Started ${esc(time12(r.start))}` : 'Tap start to clock in'}</div>
+      <div class="subline muted">${r ? `Started ${esc(formatTime(r.start, state.settings.timeFormat))}` : 'Tap start to clock in'}</div>
+      ${labelsChips()}
       <div class="btn-group">
-        <svg width="264" height="264" viewBox="0 0 264 264" aria-hidden="true">
-          <circle class="ring-track" cx="132" cy="132" r="124"/>
-          <circle class="ring" id="ring" cx="132" cy="132" r="124"
-            style="stroke:${color};stroke-dasharray:${RING_C.toFixed(2)};stroke-dashoffset:${(RING_C * (1 - p)).toFixed(2)}"/>
+        <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" aria-hidden="true">
+          <circle class="ring-track" cx="${size / 2}" cy="${size / 2}" r="${radius}"/>
+          <circle class="ring" id="ring" data-c="${c.toFixed(2)}" cx="${size / 2}" cy="${size / 2}" r="${radius}"
+            style="stroke:${color};stroke-dasharray:${c.toFixed(2)};stroke-dashoffset:${(c * (1 - p)).toFixed(2)}"/>
         </svg>
         ${r
-          ? '<button type="button" class="big finish' + enter + '" id="finish" aria-label="Finish: press and hold for one second"><span>FINISH</span><small>HOLD 1 SEC</small></button>'
-          : '<button type="button" class="big start' + enter + '" id="start" aria-label="Start timer">START</button>'}
+          ? `<button type="button" class="big finish${enter}" id="finish" aria-label="Finish: press and hold for one second"><span>FINISH</span><small>HOLD 1 SEC</small></button>`
+          : `<button type="button" class="big start${enter}" id="start" aria-label="Start timer">START</button>`}
       </div>
-      <div class="card today"><span class="muted">Logged today</span><b>${formatHours(todayMinutes())} h</b></div>
+      <div class="card today">${card}</div>
     </div>`;
 }
 
 function historyView() {
+  const opts = { ...view(), newId: state.newId };
   return `
     <div class="stack">
       ${noticeHtml()}
       <div class="row-between center"><h1>History</h1>
         <button type="button" class="export" id="export">${ICON_EXPORT}Export CSV</button></div>
       <div class="cols" aria-hidden="true"><div>Date</div><div>Clock in</div><div>Clock out</div><div class="r">Total</div></div>
-      ${renderHistory(groupHistory(state.entries))}
+      ${renderHistory(groupHistory(state.entries, opts), opts)}
+      ${finishedEntries(state.entries).length ? '<p class="muted small hint">Tap a shift to edit it. Swipe left to delete.</p>' : ''}
     </div>`;
 }
 
-function settingsView() {
-  const rows = [
-    ['Time format', '12-hour'],
-    ['Week starts', 'Monday'],
-    ['Rounding', 'None'],
-    ['Job &amp; employee labels', 'Hidden'],
-    ['Device name', esc(state.device)],
-    ['Google Sheets sync', 'Off'],
-  ];
+function macHistoryView() {
+  const opts = { ...view(), newId: state.newId };
+  const range = historyRange(state.filter, { weekStartsOn: state.settings.weekStartsOn });
+  const list = filterEntries(state.entries, range);
   return `
-    <div class="stack">
-      <h1>Settings</h1>
+    <div class="mac-head">
+      <h1>History</h1>
+      <div class="pills" role="group" aria-label="Show">
+        ${HISTORY_FILTERS.map((f) => `<button type="button" class="pill" data-filter="${f.id}" aria-pressed="${f.id === state.filter}">${f.label}</button>`).join('')}
+        <button type="button" class="export" id="export">${ICON_EXPORT}Export CSV</button>
+        <button type="button" class="icon-btn gear" id="open-settings" aria-label="Settings">${ICON_GEAR}</button>
+      </div>
+    </div>
+    ${renderHistoryTable(groupHistory(list, opts), opts)}`;
+}
+
+function segmented(key, options, label) {
+  const current = String(state.settings[key]);
+  return `<div class="seg" role="group" aria-label="${label}">${options.map(([value, text]) => `
+    <button type="button" data-set="${key}" data-value="${value}" aria-pressed="${String(value) === current}">${text}</button>`).join('')}</div>`;
+}
+
+function settingsView() {
+  const s = state.settings;
+  return `
+    <div class="stack settings">
+      <div class="row-between center"><h1>Settings</h1>
+        ${isWide() ? '<button type="button" class="export" id="close-settings">Done</button>' : ''}</div>
       <div class="card list">
-        ${rows.map(([k, v]) => `<div class="set"><span>${k}</span><span class="muted">${v}</span></div>`).join('')}
+        <div class="set"><span>Time format</span>${segmented('timeFormat', [['12', '12-hour'], ['24', '24-hour']], 'Time format')}</div>
+        <div class="set"><span>Week starts</span>${segmented('weekStartsOn', [[1, 'Monday'], [0, 'Sunday']], 'Week starts')}</div>
+        <div class="set"><span>Rounding</span>${segmented('rounding', [[0, 'None'], [5, '5 min'], [15, '15 min']], 'Rounding')}</div>
+        <div class="set"><span id="lbl-labels">Job &amp; employee labels</span>
+          <button type="button" class="switch" role="switch" id="toggle-labels" aria-checked="${s.showLabels}" aria-labelledby="lbl-labels"><span></span></button></div>
+        <label class="set"><span>Device name</span>
+          <input type="text" class="set-input" id="device-name" value="${esc(s.deviceName)}" placeholder="${esc(detectDevice())}" maxlength="40" autocomplete="off" enterkeyhint="done"></label>
+        <div class="set"><span>Sync between devices</span><span class="muted">Coming soon</span></div>
         <button type="button" class="set set-btn" id="export-all"><span>Export all data</span><span class="muted">CSV ›</span></button>
       </div>
-      <p class="muted small">These settings become editable in the next update.</p>
+      <p class="muted small">Rounding changes the times and hours shown and exported. Your recorded times are never changed.</p>
       <p class="muted small center-text">Open source · MIT licence · Your data stays on your devices</p>
     </div>`;
 }
 
 // ---------- Render ----------
 
+let swipe;
+
 function render() {
-  const view = $('#view');
-  view.innerHTML = state.tab === 'timer' ? timerView() : state.tab === 'history' ? historyView() : settingsView();
+  const el = $('#view');
+  const wide = isWide();
+  document.body.classList.toggle('wide', wide);
+  const scroller = wide ? el.querySelector('.right') : el;
+  const keepScroll = scroller ? scroller.scrollTop : 0;
+  if (wide) {
+    el.innerHTML = `
+      <div class="split">
+        <section class="left" aria-label="Timer">${timerView()}</section>
+        <section class="right" aria-label="${state.pane === 'settings' ? 'Settings' : 'History'}">
+          ${state.pane === 'settings' ? settingsView() : macHistoryView()}</section>
+      </div>`;
+    const right = el.querySelector('.right');
+    if (right) right.scrollTop = keepScroll;
+  } else {
+    el.innerHTML = state.tab === 'timer' ? timerView() : state.tab === 'history' ? historyView() : settingsView();
+    el.scrollTop = keepScroll;
+  }
   document.querySelectorAll('.tabbar button').forEach((b) => {
     if (b.dataset.tab === state.tab) b.setAttribute('aria-current', 'page');
     else b.removeAttribute('aria-current');
   });
   state.renderedDay = isoDate(new Date());
+  state.newId = null;
+  swipe?.reset();
   bind();
 }
 
 /** Cheap per-frame / per-second update of the counter and ring only. */
 function tick() {
   if (state.renderedDay !== isoDate(new Date())) { render(); return; } // midnight rollover
-  if (state.tab !== 'timer') return;
   const c = $('#counter');
   const ring = $('#ring');
   if (!c || !ring) return;
   c.textContent = clock(state.running ? Date.now() - Date.parse(state.running.start) : 0);
   const { p, color } = ringState();
+  const circ = Number(ring.dataset.c);
   ring.style.stroke = color;
-  ring.style.strokeDashoffset = (RING_C * (1 - p)).toFixed(2);
+  ring.style.strokeDashoffset = (circ * (1 - p)).toFixed(2);
 }
 
 // ---------- Actions ----------
+
+const replaceEntry = (updated) => {
+  state.entries = state.entries.map((e) => (e.id === updated.id ? updated : e));
+};
+
+async function save(updated) {
+  await putEntry(updated);
+  replaceEntry(updated);
+}
 
 async function onStart() {
   if (state.busy || state.running) return;
   state.busy = true;
   try {
-    const entry = await startTimer(state.device);
+    const labels = state.settings.showLabels ? state.nextLabels : {};
+    const entry = await startTimer(deviceName(), labels);
     state.entries.push(entry);
     state.running = entry;
     state.animateButton = true;
@@ -173,10 +272,26 @@ async function onFinish() {
   state.busy = true;
   cancelHold(false);
   try {
-    const done = await finishTimer(state.running);
-    state.entries = state.entries.map((e) => (e.id === done.id ? done : e));
+    const running = state.running;
+    const elapsed = Date.now() - Date.parse(running.start);
+    if (elapsed < SHORT_MS) {
+      const choice = await askKeepOrDiscard(Math.max(0, Math.floor(elapsed / 1000)));
+      if (choice === 'cancel') return; // still running
+      if (choice === 'discard') {
+        replaceEntry(await discardTimer(running));
+        state.running = null;
+        state.animateButton = true;
+        haptic(10);
+        render();
+        toast('Shift discarded');
+        return;
+      }
+    }
+    const done = await finishTimer(running);
+    replaceEntry(done);
     state.running = null;
     state.animateButton = true;
+    state.newId = done.id;
     haptic([20, 60, 30]);
     render();
     toast(`Logged · ${durationLabel(entryMinutes(done))}`);
@@ -187,6 +302,87 @@ async function onFinish() {
     state.busy = false;
   }
 }
+
+async function deleteShift(id) {
+  const entry = state.entries.find((e) => e.id === id);
+  if (!entry) return;
+  const before = entry;
+  try {
+    await save({ ...entry, deleted: true, updatedAt: toLocalISO() });
+  } catch (err) { console.error(err); toast('Could not delete — try again'); return; }
+  haptic(10);
+  render();
+  toast('Shift deleted', {
+    action: 'Undo',
+    onAction: async () => {
+      await save({ ...before, deleted: false, updatedAt: toLocalISO() });
+      state.newId = before.id;
+      render();
+    },
+  });
+}
+
+function editShift(id) {
+  const entry = state.entries.find((e) => e.id === id);
+  if (!entry || !entry.end) return;
+  openEditSheet(entry, {
+    entries: state.entries,
+    onSave: async ({ start, end, job, employee }) => {
+      const timesChanged = !!(start || end);
+      const updated = {
+        ...entry,
+        start: start ? toLocalISO(start) : entry.start,
+        end: end ? toLocalISO(end) : entry.end,
+        job,
+        employee,
+        edited: entry.edited || timesChanged,
+        updatedAt: toLocalISO(),
+      };
+      try { await save(updated); } catch (err) { console.error(err); toast('Could not save — try again'); return; }
+      state.newId = updated.id;
+      render();
+      toast('Shift updated');
+    },
+    onDelete: () => deleteShift(id),
+  });
+}
+
+function editLabels() {
+  openLabelsSheet({
+    ...(state.running || state.nextLabels),
+    running: !!state.running,
+    entries: state.entries,
+    onSave: async ({ job, employee }) => {
+      state.nextLabels = { job, employee };
+      ls.set(NEXT_LABELS, JSON.stringify(state.nextLabels));
+      if (state.running) {
+        const updated = { ...state.running, job, employee, updatedAt: toLocalISO() };
+        try { await save(updated); state.running = updated; } catch (err) { console.error(err); toast('Could not save — try again'); }
+      }
+      render();
+    },
+  });
+}
+
+function updateSettings(patch) {
+  state.settings = saveSettings({ ...state.settings, ...patch });
+  render();
+}
+
+function openExport(initialRange) {
+  openExportSheet({
+    getEntries: () => state.entries,
+    initialRange,
+    weekStartsOn: state.settings.weekStartsOn,
+    rounding: state.settings.rounding,
+    onExported: (n, how) => {
+      ls.set(LAST_EXPORT, isoDate(new Date()));
+      toast(`${how === 'shared' ? 'Shared' : 'Exported'} · ${n} shift${n === 1 ? '' : 's'}`);
+    },
+  });
+}
+
+// ---------- Press and hold ----------
 
 let holdRaf = 0;
 let holdStart = 0;
@@ -215,9 +411,11 @@ function cancelHold(redraw = true) {
   if (redraw) tick();
 }
 
+// ---------- Events ----------
+
+/** Per-render bindings for elements that are replaced on every render. */
 function bind() {
   $('#start')?.addEventListener('click', onStart);
-
   const f = $('#finish');
   if (f) {
     f.addEventListener('pointerdown', beginHold);
@@ -227,36 +425,65 @@ function bind() {
       if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); onFinish(); }
     });
   }
-
-  const openExport = (initialRange) => openExportSheet({
-    getEntries: () => state.entries,
-    initialRange,
-    onExported: (n, how) => {
-      ls.set(LAST_EXPORT, isoDate(new Date()));
-      toast(`${how === 'shared' ? 'Shared' : 'Exported'} · ${n} shift${n === 1 ? '' : 's'}`);
-    },
-  });
-  $('#export')?.addEventListener('click', () => openExport('this-week'));
-  $('#export-all')?.addEventListener('click', () => openExport('all'));
-
-  $('#dismiss-empty')?.addEventListener('click', () => {
-    ls.set(EMPTY_WARNED, ls.get(LAST_EXPORT) || '');
-    render();
-  });
+  const name = $('#device-name');
+  if (name) {
+    const commit = () => { if (name.value.trim() !== state.settings.deviceName) updateSettings({ deviceName: name.value }); };
+    name.addEventListener('change', commit);
+    name.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); name.blur(); } });
+  }
 }
 
-// ---------- Boot ----------
+/** Delegated clicks for everything else in the view. */
+function onViewClick(ev) {
+  const t = ev.target;
+  const del = t.closest('[data-delete]');
+  if (del) { ev.stopPropagation(); deleteShift(del.dataset.delete); return; }
+  const edit = t.closest('[data-edit]');
+  if (edit) { editShift(edit.dataset.edit); return; }
+  if (t.closest('[data-labels]')) { editLabels(); return; }
+  const set = t.closest('[data-set]');
+  if (set) {
+    const raw = set.dataset.value;
+    updateSettings({ [set.dataset.set]: set.dataset.set === 'timeFormat' ? raw : Number(raw) });
+    return;
+  }
+  const filter = t.closest('[data-filter]');
+  if (filter) { state.filter = filter.dataset.filter; render(); return; }
+  if (t.closest('#toggle-labels')) { updateSettings({ showLabels: !state.settings.showLabels }); return; }
+  if (t.closest('#export')) { openExport(isWide() && state.filter === 'month' ? 'this-month' : 'this-week'); return; }
+  if (t.closest('#export-all')) { openExport('all'); return; }
+  if (t.closest('#open-settings')) { state.pane = 'settings'; render(); return; }
+  if (t.closest('#close-settings')) { state.pane = 'history'; render(); return; }
+  if (t.closest('#dismiss-empty')) { ls.set(EMPTY_WARNED, ls.get(LAST_EXPORT) || ''); render(); }
+}
+
+function onViewKey(ev) {
+  const row = ev.target.closest?.('tr[data-edit]');
+  if (!row || ev.target !== row) return;
+  if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); editShift(row.dataset.edit); }
+  if (ev.key === 'Delete' || ev.key === 'Backspace') { ev.preventDefault(); deleteShift(row.dataset.edit); }
+}
+
+const viewEl = $('#view');
+swipe = enableSwipe(viewEl, { onDelete: deleteShift });
+viewEl.addEventListener('click', onViewClick);
+viewEl.addEventListener('keydown', onViewKey);
 
 document.querySelectorAll('.tabbar button').forEach((b) => b.addEventListener('click', () => {
   if (state.tab === b.dataset.tab) return;
   cancelHold(false);
   state.tab = b.dataset.tab;
   render();
-  $('#view').scrollTop = 0;
+  viewEl.scrollTop = 0;
 }));
 
+// Phone ↔ Mac layout when the window crosses 900 px.
+wideQuery.addEventListener('change', () => { cancelHold(false); render(); });
+
 // Coming back from the background: redraw so the counter and "today" are current.
-document.addEventListener('visibilitychange', () => { if (!document.hidden) render(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden && !holdRaf) render(); });
+
+// ---------- Boot ----------
 
 async function boot() {
   try {
