@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { DatabaseSync } from 'node:sqlite';
 import { openStore, createSyncServer, cleanEntry } from '../server/server.mjs';
+import { verifyBackup } from '../server/verify-backup.mjs';
 
 const OWNER = 'owner-key-0123456789-abcdefghijklmn';
 const ORIGIN = 'https://timetracker.jayframemedia.com.au';
@@ -47,6 +48,15 @@ test('health needs no key; every API call needs a valid personal key', async () 
   assert.equal((await api('/api/ping', { key: 'not-a-real-key-not-a-real-key' })).status, 401);
   assert.deepEqual((await json('/api/ping')).user, { name: 'Jason', role: 'owner' });
   assert.deepEqual((await json('/api/ping', { key: SAM })).user, { name: 'Sam', role: 'staff' });
+});
+
+test('security headers on every response', async () => {
+  for (const res of [await api('/health', { key: null }), await api('/api/ping'), await api('/api/ping', { key: null })]) {
+    assert.equal(res.headers.get('strict-transport-security'), 'max-age=31536000');
+    assert.equal(res.headers.get('x-content-type-options'), 'nosniff');
+    assert.equal(res.headers.get('x-frame-options'), 'DENY');
+    assert.equal(res.headers.get('cache-control'), 'no-store');
+  }
 });
 
 test('CORS allows only the app origin and the clock header', async () => {
@@ -234,6 +244,12 @@ test('backup writes a usable copy', () => {
   const file = join(dir, 'backup.db');
   store.backup(file);
   assert.ok(existsSync(file));
+  const v = verifyBackup(file);
+  assert.equal(v.ok, true);
+  assert.equal(v.version, 2);
+  assert.ok(v.shifts > 1000);
+  assert.equal(v.people[0].role, 'owner');
+  assert.throws(() => verifyBackup(join(dir, 'nope.db')), /No file/);
   const copy = openStore(file);
   assert.ok(copy.listUsers().length >= 3);
   copy.close();

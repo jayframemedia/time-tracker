@@ -19,6 +19,17 @@ import { openStore, cleanEntry, isDate } from './store.mjs';
 export { openStore, cleanEntry } from './store.mjs';
 
 const MAX_BODY = 2 * 1024 * 1024;
+
+// Sent with every response. HSTS is set here (not zone-wide in Cloudflare) so it only covers
+// the sync hostname, never your main website.
+export const SECURITY_HEADERS = {
+  'Strict-Transport-Security': 'max-age=31536000',
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+  'Referrer-Policy': 'no-referrer',
+  'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none'",
+  'Cross-Origin-Resource-Policy': 'cross-origin',
+};
 const MAX_BATCH = 5000;
 
 export function createSyncServer({ store, allowedOrigins = [], log = () => {} }) {
@@ -27,7 +38,7 @@ export function createSyncServer({ store, allowedOrigins = [], log = () => {} })
     res.writeHead(status, {
       'Content-Type': text ? 'text/plain; charset=utf-8' : 'application/json; charset=utf-8',
       'Cache-Control': 'no-store',
-      'X-Content-Type-Options': 'nosniff',
+      ...SECURITY_HEADERS,
       ...headers,
     });
     res.end(text ? body : JSON.stringify(body));
@@ -69,7 +80,7 @@ export function createSyncServer({ store, allowedOrigins = [], log = () => {} })
     const done = (status, body) => { send(res, status, body, cors); log(`${req.method} ${url.pathname} ${status}`); };
 
     try {
-      if (req.method === 'OPTIONS') { res.writeHead(204, cors); res.end(); return; }
+      if (req.method === 'OPTIONS') { res.writeHead(204, { ...SECURITY_HEADERS, ...cors }); res.end(); return; }
       if (url.pathname === '/health' && req.method === 'GET') { done(200, 'ok'); return; }
       if (!url.pathname.startsWith('/api/')) { done(404, { ok: false, error: 'not_found' }); return; }
 
