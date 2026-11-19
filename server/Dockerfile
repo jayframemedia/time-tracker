@@ -1,7 +1,7 @@
 # Time Tracker sync server — tiny Node image, no npm dependencies.
 FROM node:24-alpine
 WORKDIR /app
-COPY server.mjs backup.mjs ./
+COPY *.mjs ./
 ENV NODE_ENV=production \
     NODE_NO_WARNINGS=1 \
     PORT=8787 \
