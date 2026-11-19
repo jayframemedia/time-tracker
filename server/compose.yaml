@@ -15,7 +15,8 @@ services:
       - sync-data:/data
 
   tunnel:
-    image: cloudflare/cloudflared:latest
+    # Pinned to an exact release; Dependabot proposes updates (.github/dependabot.yml).
+    image: cloudflare/cloudflared:2026.11.1@sha256:e613aadbc2d9511785d2e67a86b0c8ac18dd63a3f9af0d06faf04cbfdcb35f2d
     restart: unless-stopped
     command: tunnel --no-autoupdate run
     environment:
@@ -23,6 +24,25 @@ services:
     depends_on:
       sync:
         condition: service_healthy
+
+  # Off-server backups: copies /data/backups to a private Cloudflare R2 bucket.
+  # Not started with the others; run it after a backup:  docker compose run --rm offsite
+  # It only ever adds/updates files in the bucket, never deletes them.
+  offsite:
+    image: rclone/rclone:1.76.0@sha256:7cbeec24a44f206067597c0368be4de90ae19a64d5113c7d1938bd737a81e466
+    profiles: [tools]
+    volumes:
+      - sync-data:/data:ro
+    environment:
+      RCLONE_CONFIG_R2_TYPE: s3
+      RCLONE_CONFIG_R2_PROVIDER: Cloudflare
+      RCLONE_CONFIG_R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:-}
+      RCLONE_CONFIG_R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:-}
+      RCLONE_CONFIG_R2_ENDPOINT: https://${R2_ACCOUNT_ID:-missing}.r2.cloudflarestorage.com
+      RCLONE_CONFIG_R2_NO_CHECK_BUCKET: "true"
+      RCLONE_CONFIG_R2_ACL: private
+    command: ["copy", "/data/backups", "r2:${R2_BUCKET:-time-tracker-backups}/backups",
+      "--exclude", "*-wal", "--exclude", "*-shm", "--stats-one-line", "-v"]
 
 volumes:
   sync-data:
