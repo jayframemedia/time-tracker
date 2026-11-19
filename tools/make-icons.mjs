@@ -36,26 +36,36 @@ function colourAt(x, y, g) {
   return c;
 }
 
-function renderPng(size, scale) {
+/**
+ * Render the artwork into a width × height PNG. The artwork occupies an `art`-pixel square
+ * centred in the image; everything outside it is plain background (fast path).
+ */
+function renderPng(width, height = width, { scale = 1, art = Math.min(width, height) } = {}) {
   const g = shapes(scale);
   const SS = 4; // 4×4 supersampling for smooth edges
-  const raw = Buffer.alloc(size * (size * 3 + 1));
-  for (let py = 0; py < size; py++) {
-    raw[py * (size * 3 + 1)] = 0; // filter: none
-    for (let px = 0; px < size; px++) {
+  const stride = width * 3 + 1;
+  const raw = Buffer.alloc(height * stride);
+  const cx = width / 2;
+  const cy = height / 2;
+  for (let py = 0; py < height; py++) {
+    raw[py * stride] = 0; // filter: none
+    for (let px = 0; px < width; px++) {
+      const o = py * stride + 1 + px * 3;
+      const nx = (px + 0.5 - cx) / art;
+      const ny = (py + 0.5 - cy) / art;
+      if (Math.abs(nx) > 0.5 || Math.abs(ny) > 0.5) { raw[o] = BG[0]; raw[o + 1] = BG[1]; raw[o + 2] = BG[2]; continue; }
       const acc = [0, 0, 0];
       for (let sy = 0; sy < SS; sy++) {
         for (let sx = 0; sx < SS; sx++) {
-          const x = (px + (sx + 0.5) / SS) / size - 0.5;
-          const y = (py + (sy + 0.5) / SS) / size - 0.5;
+          const x = (px + (sx + 0.5) / SS - cx) / art;
+          const y = (py + (sy + 0.5) / SS - cy) / art;
           colourAt(x, y, g).forEach((v, i) => { acc[i] += v; });
         }
       }
-      const o = py * (size * 3 + 1) + 1 + px * 3;
       for (let i = 0; i < 3; i++) raw[o + i] = Math.round(acc[i] / (SS * SS));
     }
   }
-  return encodePng(size, size, raw);
+  return encodePng(width, height, raw);
 }
 
 const CRC_TABLE = Array.from({ length: 256 }, (_, n) => {
@@ -113,7 +123,23 @@ const files = [
   ['icon-maskable-512.png', 512, 0.8], // artwork inside the maskable safe zone
 ];
 for (const [name, size, scale] of files) {
-  writeFileSync(new URL(name, out), renderPng(size, scale));
+  writeFileSync(new URL(name, out), renderPng(size, size, { scale }));
+  console.log('wrote icons/' + name);
+}
+
+// iPhone launch screens (apple-touch-startup-image), portrait, in device pixels.
+// Keep in sync with the <link rel="apple-touch-startup-image"> tags in index.html.
+export const SPLASHES = [
+  // [points width, points height, pixel ratio]
+  [393, 852, 3], // iPhone 15 / 15 Pro / 16 / 17
+  [402, 874, 3], // iPhone 16 Pro / 17 Pro
+  [420, 912, 3], // iPhone Air
+  [430, 932, 3], // iPhone 15 Pro Max / 16 Plus
+  [440, 956, 3], // iPhone 16 Pro Max / 17 Pro Max
+];
+for (const [w, h, r] of SPLASHES) {
+  const name = `splash-${w * r}x${h * r}.png`;
+  writeFileSync(new URL(name, out), renderPng(w * r, h * r, { art: Math.round(w * r * 0.62) }));
   console.log('wrote icons/' + name);
 }
 writeFileSync(new URL('icon.svg', out), svg());

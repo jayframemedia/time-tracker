@@ -18,7 +18,7 @@ An open-source, in-house time tracker for iPhone and Mac: a big orange Start but
 | `samples/sample-export.csv` | Exact CSV format the app must produce |
 | `index.html`, `styles.css`, `js/`, `sw.js`, `manifest.webmanifest`, `icons/` | The app |
 | `tests/` | `node --test` unit tests |
-| `tools/serve.mjs`, `tools/make-icons.mjs` | Local server; icon generator |
+| `tools/serve.mjs`, `tools/make-icons.mjs` | Local server; icon and iPhone launch-screen generator (`node tools/make-icons.mjs`) |
 
 ## Run it locally
 
