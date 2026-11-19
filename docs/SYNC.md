@@ -17,7 +17,14 @@ Mac app ────┘
 | `GET /health` (no auth) | `ok` |
 | `GET /api/ping` | `{ ok: true, serverTime }`, used to check the address and key |
 | `POST /api/entries` `{ entries: [entry, …] }` | `{ ok, upserted, skipped, serverTime }` |
-| `GET /api/entries?since=<cursor>` | `{ ok, entries, cursor, more, serverTime }`, up to 1000 per page |
+| `GET /api/entries?since=<cursor>` | `{ ok, entries, cursor, more, serverTime }`, up to 1000 per page, **own shifts only** |
+| `GET /api/team/entries?from&to` (owner) | `{ ok, users, entries (with userId, clockSkewMs, original), running, lockBefore }` |
+| `POST /api/team/entries` (owner) | correct anyone's existing shift |
+| `POST /api/team/lock { before }` (owner) | lock staff edits to shifts before a date (`null` unlocks) |
+
+Since Phase 5, every reply also includes `user: { name, role }` and `lockBefore`. A push reply also has `rejected` (ids) and `restore` (the server's copy, for the device to take back). The optional `X-Client-Time` header lets the server record how far off a phone's clock is.
+
+**Users (Phase 5):** each person has a personal key. Keys are stored only as hashes, and the original `SYNC_TOKEN` becomes the owner's key. Staff can only read and write their own shifts. Every accepted write is also kept in a `versions` table. Details: `docs/MULTI-USER.md`.
 
 Errors are `{ ok: false, error: "bad_token" | "bad_request" | "bad_entry" | "too_large" | "not_found" | "server_error" }`.
 

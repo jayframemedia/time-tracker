@@ -16,6 +16,11 @@
 | Mac history | Repeats the date on every row (as in the Mac reference) and adds a Day total row for multi-shift days (as in CLAUDE.md) | Follows both references |
 | Sync cursor | Server sequence numbers, not timestamps, decide what to pull | A device with a wrong clock can't cause the other to miss changes; last-write-wins still uses `updatedAt` |
 | Two shifts running | Shown as a red notice with "Discard it" rather than auto-resolved | Only happens if both devices start offline; Jason decides which is real |
+| Staff access (Phase 5) | Personal keys made on the server (`admin.mjs`), no logins; owner/staff roles | No accounts or passwords to manage; revoke is instant |
+| Team view data | Loaded live from the server, never stored on the owner's devices | Other people's records stay on the server |
+| Staff edits | Allowed until the owner locks the week; every version is kept and the original is shown to the owner | Staff can fix mistakes, but changes are visible |
+| Clock check | Server compares each phone's clock with its own; more than 5 min off is flagged | Catches wrong phone clocks without blocking anyone |
+| Record keeping | Soft deletes only; monthly backup copies kept indefinitely | Hours worked generally need keeping for 7 years (check what applies) |
 | Offline updates | Service worker caches a versioned copy; bump `VERSION` in `sw.js` on every release | Installed apps update on the next launch after a deploy |
 
 ## Defaults chosen — confirm or change (Jason)

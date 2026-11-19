@@ -1,7 +1,7 @@
 # Time Tracker — project rules for Claude Code
 
 ## What this is
-An open-source, in-house time tracker for Jason (Brisbane, iPhone 17 Pro + Mac). Phase 5 (planned, docs/MULTI-USER.md) adds Jason's staff, each on their own device, with an owner Team view.
+An open-source, in-house time tracker for Jason (Brisbane, iPhone 17 Pro + Mac). Phase 5 (built, docs/MULTI-USER.md) adds Jason's staff, each on their own device with a personal key, plus an owner Team view.
 Start/finish timer → logged entry → history by day → CSV export. Sync between devices: own server in Docker behind a Cloudflare Tunnel (Phase 3, `server/`, `docs/SYNC.md`).
 
 **Before writing code, read:** `docs/SPEC.md`, `docs/DESIGN.md`, `docs/DECISIONS.md`.

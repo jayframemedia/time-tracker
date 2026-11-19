@@ -1,4 +1,6 @@
-# Phase 5 — Staff (multiple users) — plan
+# Phase 5 — Staff (multiple users)
+
+**Status:** built 2026-11-19. Server commands are in `server/README.md` → Staff; the API is in `docs/SYNC.md`.
 
 **Goal:** each staff member tracks their own hours on their own phone. Jason (the owner) sees everyone's hours, checks edits, and exports CSV.
 

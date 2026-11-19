@@ -53,7 +53,7 @@ Phase 3: Google Sheets sync per docs/SYNC.md.
 Test with curl first, then on both devices.
 ```
 
-## Phase 5 — Staff: multiple users + owner Team view
+## Phase 5 — Staff: multiple users + owner Team view (built)
 
 ```text
 Phase 5: staff. Read docs/MULTI-USER.md (plan + decisions) first.

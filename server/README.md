@@ -96,13 +96,27 @@ On the iPhone and the Mac, open **Settings → Sync between devices** and enter:
 
 Tap **Connect**. Each device uploads its shifts and downloads the other's.
 
+## Staff
+
+Everyone gets their own **personal key**. The owner's key is the original `SYNC_TOKEN`.
+
+| To | Run (in `/opt/time-tracker/server`) |
+| --- | --- |
+| Add someone | `docker compose exec sync node admin.mjs add "Sam Smith"` (prints their key once) |
+| See everyone | `docker compose exec sync node admin.mjs list` |
+| Someone leaves | `docker compose exec sync node admin.mjs revoke "Sam Smith"` (their hours are kept) |
+| Lost key | `docker compose exec sync node admin.mjs new-key "Sam Smith"` |
+| Fix a name | `docker compose exec sync node admin.mjs rename "Owner" "Jason"` |
+
+Give each key to the person privately. They install the app from https://timetracker.jayframemedia.com.au, open **Settings → Sync between devices**, and enter `time.jayframemedia.com.au` and their key.
+
 ## 7. Nightly backup (recommended)
 
 ```bash
 crontab -e
 ```
 
-Add this line. It keeps 14 daily copies inside the Docker volume:
+Add this line. It keeps 14 daily copies, plus one copy per month kept indefinitely (for record keeping), inside the Docker volume:
 
 ```
 15 3 * * * cd /opt/time-tracker/server && docker compose exec -T sync node backup.mjs >> /var/log/time-tracker-backup.log 2>&1
@@ -115,6 +129,9 @@ cd /opt/time-tracker/server && docker compose cp sync:/data/backups ./backups
 ```
 
 ## Updating
+
+The first time you update to the staff version (Phase 5), the database is upgraded automatically. Your existing `SYNC_TOKEN` becomes the owner key and all existing shifts become yours. Add `OWNER_NAME=YourName` to `.env` first, or rename yourself afterwards.
+
 
 ```bash
 cd /opt/time-tracker && git pull && cd server && docker compose pull tunnel && docker compose up -d --build
