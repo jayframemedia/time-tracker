@@ -790,8 +790,35 @@ async function boot() {
 
 boot();
 
+// ---------- Updates ----------
+// Installed apps usually resume rather than restart, so: look for a new version whenever the app
+// comes to the foreground, and when one takes over, reload at a safe moment (never mid-hold,
+// with a sheet open, or while typing). Everything is saved, so a reload loses nothing.
+
+function safeToReload() {
+  return !holdRaf && !state.busy && !document.querySelector('dialog[open]') && !typingInView();
+}
+
+function reloadWhenSafe() {
+  if (safeToReload()) location.reload();
+  else setTimeout(reloadWhenSafe, 2000);
+}
+
 if ('serviceWorker' in navigator) {
+  // The first time a worker takes control (very first visit) is not an update, so skip it.
+  let controlled = !!navigator.serviceWorker.controller;
+  let reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!controlled) { controlled = true; return; }
+    if (reloading) return;
+    reloading = true;
+    reloadWhenSafe();
+  });
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').catch((err) => console.warn('Service worker not registered', err));
+    navigator.serviceWorker.register('./sw.js').then((reg) => {
+      const check = () => reg.update().catch(() => { /* offline — try next time */ });
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
+      setInterval(() => { if (!document.hidden) check(); }, 30 * 60 * 1000);
+    }).catch((err) => console.warn('Service worker not registered', err));
   });
 }
