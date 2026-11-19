@@ -2,7 +2,7 @@
 
 ## What this is
 An open-source, in-house time tracker for ONE user (Jason, Brisbane) on an iPhone 17 Pro and a Mac.
-Start/finish timer → logged entry → history by day → CSV export. Optional Google Sheets sync comes later (Phase 3).
+Start/finish timer → logged entry → history by day → CSV export. Sync between devices: own server in Docker behind a Cloudflare Tunnel (Phase 3, `server/`, `docs/SYNC.md`).
 
 **Before writing code, read:** `docs/SPEC.md`, `docs/DESIGN.md`, `docs/DECISIONS.md`.
 **Visual + behavioural reference:** open `design/mockup.html` (iPhone) and `design/mac-reference.html` (Mac) in a browser. Match them. They are reference prototypes only — do not copy their code structure into the app.
@@ -62,13 +62,14 @@ entry = {
 
 ## Never
 - Add analytics, trackers, third-party CDNs or network-loaded fonts.
-- Commit personal data, real timesheets, or any Sheets token.
+- Commit personal data, real timesheets, `server/.env`, the sync key or the Cloudflare tunnel token.
 - Add accounts or login screens.
 - Change the stack or the CSV columns without asking.
 
 ## Workflow
 - Work one phase at a time, using the prompts in `KICKOFF.md`. At the end of each phase, stop and list exactly what Jason should test on his iPhone and Mac.
-- Keep modules small: `store.js`, `timer.js`, `history.js`, `csv.js`, `ui.js`, `sync.js` (Phase 3).
+- Keep modules small: `store.js`, `timer.js`, `history.js`, `csv.js`, `ui.js`, `sync.js`, plus `format.js`, `settings.js`, `sheets.js`, `swipe.js`, `app.js`.
+- Bump `VERSION` in `sw.js` whenever an app file changes, and list any new app file in its `ASSETS`.
 - Put date/hours/CSV formatting in pure functions and test them with `node --test` (no dependencies).
 - Use clear commit messages, one commit per meaningful step.
 

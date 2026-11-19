@@ -1,41 +1,52 @@
-# Phase 3 — Google Sheets sync
+# Phase 3 — Sync between devices
 
-Optional. Lets the iPhone and Mac share one history through a Google Sheet. No Google sign-in in the app: a small Apps Script bound to the Sheet runs as Jason and accepts requests carrying a secret token.
+The iPhone and Mac share one history through a small sync server you run yourself (`server/`). It runs in Docker on your own Ubuntu server, behind a Cloudflare Tunnel at `https://time.jayframemedia.com.au`. Setup steps: `server/README.md`.
 
-## Sheet
-One tab named `Entries`, header row:
+There are no accounts or logins. Each device holds a long shared **sync key** and sends it as `Authorization: Bearer <key>`. The key is kept in the server's `.env` file and in each device's Settings, never in the repo.
+
 ```
-id | start | end | employee | job | device | edited | deleted | createdAt | updatedAt | hours
+iPhone app ─┐                      Cloudflare            your server (Docker)
+            ├─ HTTPS ─► time.jayframemedia.com.au ─tunnel─► cloudflared ─► sync:8787 ─► SQLite
+Mac app ────┘
 ```
-`hours` is a number the script writes on each upsert: `(end − start)` in hours, 2 dp (blank while running). Computing it in the script avoids fragile Sheets formulas on ISO strings with offsets.
-Protect the tab so only the script owner can edit.
 
-## Apps Script (`apps-script/Code.gs`)
-- Deployed as a web app: **Execute as: Me**, **Who has access: Anyone**.
-- Token stored in **Script Properties** as `TOKEN` (long random string). Never in the repo.
-- Wrap writes in `LockService.getScriptLock()`.
-- Always return JSON via `ContentService` with `MimeType.JSON`.
+## API (`server/server.mjs`)
 
-### Contract
-```
-POST  body (Content-Type: text/plain to avoid CORS preflight):
-  { "action": "upsert", "token": "…", "entries": [ entry, … ] }
-  → { "ok": true, "upserted": 3, "serverTime": "ISO" }
+| Request | Response |
+| --- | --- |
+| `GET /health` (no auth) | `ok` |
+| `GET /api/ping` | `{ ok: true, serverTime }`, used to check the address and key |
+| `POST /api/entries` `{ entries: [entry, …] }` | `{ ok, upserted, skipped, serverTime }` |
+| `GET /api/entries?since=<cursor>` | `{ ok, entries, cursor, more, serverTime }`, up to 1000 per page |
 
-GET   ?action=list&token=…&since=<ISO updatedAt>
-  → { "ok": true, "entries": [ entry, … ], "serverTime": "ISO" }
+Errors are `{ ok: false, error: "bad_token" | "bad_request" | "bad_entry" | "too_large" | "not_found" | "server_error" }`.
 
-Errors → { "ok": false, "error": "bad_token" | "bad_request" | "…" }
-```
-- `upsert`: match on `id`; replace the row only if the incoming `updatedAt` is newer (last write wins); otherwise append.
-- Soft deletes travel as `deleted: true`; rows are never physically removed.
+- **Last write wins:** an upsert replaces the stored copy only if the incoming `updatedAt` is newer. On a tie, the stored copy stays.
+- **Cursor, not timestamps:** every accepted write gets the next server sequence number, and clients pull "everything after the cursor I last saw". A device with a wrong clock can therefore never make the other device miss a change.
+- **Soft deletes:** these travel as `deleted: true`. Rows are never removed.
+- **Validation:** only the entry fields in CLAUDE.md are stored; anything else is dropped. Limits: 5000 entries per upload, 2 MB per request.
+- **Who can call it:** CORS allows only the app's origin (`ALLOWED_ORIGINS`). No ports are published; the only way in is the tunnel.
 
-## Client (`js/sync.js`)
-- Keep a `syncedAt` per entry (local only) and a global `lastPull` in localStorage.
-- Sync on: app open, after Finish, after edit/delete, and "Sync now".
-- Push: entries where `updatedAt > syncedAt`. Pull: `since = lastPull`. Merge by `id`, newest `updatedAt` wins.
-- Apps Script replies to POST with a 302 redirect; `fetch` follows it by default. Offline → queue silently and retry next time.
-- Settings: endpoint URL, token, Sync now, "Last synced 2 min ago", status dot.
+## App (`js/sync.js`)
 
-## Test
-`curl` the endpoint for upsert/list with good and bad tokens before wiring the UI.
+- **Push:** each entry keeps a local-only `syncedAt` (the `updatedAt` it was last synced at). Entries where `syncedAt ≠ updatedAt` are uploaded in batches of 500. `syncedAt` never leaves the device.
+- **Pull:** the app fetches everything after `tt.sync.cursor` and merges by `id`; the newest `updatedAt` wins.
+- **When it syncs:**
+  - on launch;
+  - when the app comes back to the foreground or back online;
+  - every 30 s while open;
+  - right after Start / Finish / Discard;
+  - shortly after any edit, delete, Undo or label change;
+  - when you tap **Sync now**.
+- **Offline:** nothing is lost. Changes stay unsynced and go up next time.
+- **Running timer across devices:**
+  - Start on one device and the other shows it running, so you can finish it from either.
+  - If both devices started a shift while offline, a red "Another shift is running" notice offers to discard the extra one.
+- **Settings → Sync between devices** sets the server address and sync key. It also offers Sync now and Turn off sync, and shows "On · synced 2 min ago" with a status dot.
+  - Connecting re-sends everything on that device, so your existing separate histories merge.
+- **Config** (`tt.sync`), **cursor** and **status** live in localStorage, alongside the other settings.
+
+## Tests
+
+- `tests/server.test.js` starts a real server on a temporary database. It covers auth, CORS, last-write-wins, the cursor with a slow clock, deletes, paging, validation and backups.
+- `tests/sync.test.js` covers the app-side helpers.

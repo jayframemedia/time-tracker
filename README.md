@@ -1,6 +1,6 @@
 # Time Tracker — starter pack for Claude Code
 
-An open-source, in-house time tracker for iPhone and Mac: a big orange Start button, a timer that counts up, Finish to log the shift, a History tab by day, and CSV export. Google Sheets sync is optional (Phase 3).
+An open-source, in-house time tracker for iPhone and Mac: a big orange Start button, a timer that counts up, Finish to log the shift, a History tab by day, and CSV export. Sync between devices runs through your own small server (Phase 3).
 
 ## What's in this folder
 
@@ -11,13 +11,14 @@ An open-source, in-house time tracker for iPhone and Mac: a big orange Start but
 | `docs/SPEC.md` | Full functional spec: screens, behaviour, edge cases |
 | `docs/DESIGN.md` | Visual spec: layout sizes, states, components, Mac layout |
 | `docs/DECISIONS.md` | Choices already made (with defaults) and ones still open |
-| `docs/SYNC.md` | Phase 3 Google Sheets sync: Apps Script contract |
+| `docs/SYNC.md` | Phase 3 sync: how it works and the API |
 | `design/tokens.css` | Colours, type, spacing — use exactly |
 | `design/mockup.html` | Working iPhone reference prototype — open in a browser |
 | `design/mac-reference.html` | Mac layout reference — open in a browser |
 | `samples/sample-export.csv` | Exact CSV format the app must produce |
 | `index.html`, `styles.css`, `js/`, `sw.js`, `manifest.webmanifest`, `icons/` | The app |
 | `tests/` | `node --test` unit tests |
+| `server/` | Sync server (Docker + Cloudflare Tunnel). Setup: `server/README.md` |
 | `tools/serve.mjs`, `tools/make-icons.mjs` | Local server; icon and iPhone launch-screen generator (`node tools/make-icons.mjs`) |
 
 ## Run it locally
@@ -50,4 +51,4 @@ Open http://localhost:8080. Run the tests with `node --test tests/*.test.js` (No
 - **iPhone:** open the GitHub Pages URL in Safari → Share → Add to Home Screen.
 - **Mac (macOS 14 Sonoma or later):** open the URL in Safari → File → Add to Dock.
 
-Until Phase 3 sync is on, the iPhone and Mac keep separate histories. Export CSV weekly as a backup.
+With sync on (Settings → Sync between devices) the iPhone and Mac share one history. Exporting a CSV now and then is still a good backup.

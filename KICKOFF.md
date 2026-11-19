@@ -37,7 +37,9 @@ Phase 2: polish and editing.
 Then give me a full-day test checklist, including one shift in Airplane Mode and one force-quit.
 ```
 
-## Phase 3 — Google Sheets sync (optional)
+## Phase 3 — Sync (built: own server + Cloudflare Tunnel; see docs/SYNC.md and server/README.md)
+
+Original Google Sheets prompt, kept for reference:
 
 ```text
 Phase 3: Google Sheets sync per docs/SYNC.md.
