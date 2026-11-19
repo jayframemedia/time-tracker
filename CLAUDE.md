@@ -11,7 +11,7 @@ Start/finish timer → logged entry → history by day → CSV export. Sync betw
 - Installable PWA: `index.html`, `styles.css`, `js/*.js` (ES modules), `manifest.webmanifest`, `sw.js`, `icons/`
 - Vanilla JS. No framework, no build step, no runtime npm dependencies.
 - Storage: IndexedDB (object store `entries`, keyPath `id`). localStorage only for settings and the running timer's start time.
-- Hosting: GitHub Pages, deployed by a GitHub Actions workflow. Licence: MIT.
+- Hosting: GitHub Pages at https://timetracker.jayframemedia.com.au (custom domain; DNS in Cloudflare, DNS-only CNAME to jayframemedia.github.io), deployed by a GitHub Actions workflow. Licence: MIT.
 - Must install on iPhone (Safari → Share → Add to Home Screen) and Mac (Safari → File → Add to Dock, macOS 14+).
 
 ## Data model

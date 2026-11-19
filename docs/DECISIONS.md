@@ -6,7 +6,7 @@
 | Platform | Installable PWA (iPhone home screen + Mac Dock) | Free, one codebase, no App Store, nothing expires |
 | Storage | On-device IndexedDB | Works offline; no server needed |
 | Cross-device sync | Own sync server (Node + SQLite in Docker) behind a Cloudflare Tunnel at time.jayframemedia.com.au — replaces the earlier Google Sheets plan | Instant, data stays on Jason's server, no ports opened, no change to the CyberPanel website; iCloud needs the paid Apple Developer Program |
-| Licence / hosting | MIT, public GitHub repo, GitHub Pages | Open source, free hosting |
+| Licence / hosting | MIT, public GitHub repo, GitHub Pages at timetracker.jayframemedia.com.au | Open source, free hosting, own address |
 | Finish interaction | Press and hold 1 s | Prevents accidental shift ends; switch to tap + Undo if it feels slow |
 | Accent / theme | Dark only, #FF7A1A orange | Per brief: premium, dark, large orange Start |
 | Hours precision | Whole clock minutes (seconds ignored) | Hours always match the HH:MM times shown and exported: 08:00 → 17:00 is exactly 9.00 h |

@@ -57,7 +57,7 @@ nano .env
 
 - `SYNC_TOKEN=`: paste the key you just generated.
 - `TUNNEL_TOKEN=`: paste the Cloudflare tunnel token.
-- Leave `ALLOWED_ORIGINS` as it is.
+- Leave `ALLOWED_ORIGINS` as it is (`https://timetracker.jayframemedia.com.au,https://jayframemedia.github.io`).
 
 Save with Ctrl+O, Enter, then Ctrl+X. **Never commit or share `.env`.**
 
@@ -125,7 +125,7 @@ cd /opt/time-tracker && git pull && cd server && docker compose pull tunnel && d
 | Symptom | Fix |
 | --- | --- |
 | `curl …/health` gives a Cloudflare 502/1033 error | Tunnel isn't connected. Check `docker compose logs tunnel`, the token in `.env`, and that the route's service is `http://sync:8787`. |
-| The app says "Can't reach the server" | Check the address in Settings (it must be `https://`). Check `ALLOWED_ORIGINS` is `https://jayframemedia.github.io`. If Cloudflare **Bot Fight Mode** is on, add a WAF *Skip* rule for `time.jayframemedia.com.au`. |
+| The app says "Can't reach the server" | Check the address in Settings (it must be `https://`). Check `ALLOWED_ORIGINS` includes `https://timetracker.jayframemedia.com.au`. If Cloudflare **Bot Fight Mode** is on, add a WAF *Skip* rule for `time.jayframemedia.com.au`. |
 | "The sync key is wrong" | The key in Settings must match `SYNC_TOKEN` exactly. After changing `.env`, run `docker compose up -d`. |
 | Changing the key | Edit `SYNC_TOKEN`, run `docker compose up -d`, then enter the new key on each device. |
 

@@ -37,7 +37,7 @@ Open http://localhost:8080. Run the tests with `node --test tests/*.test.js` (No
    git push -u origin main
    ```
 3. On GitHub: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
-4. Open the **Actions** tab. The "Test and deploy" run tests the code, then publishes it. When it's green, the app is at `https://<your-username>.github.io/time-tracker/`.
+4. Open the **Actions** tab. The "Test and deploy" run tests the code, then publishes it. When it's green, the app is at `https://<your-username>.github.io/time-tracker/` — or, with a custom domain set under Settings → Pages, at that address (this project: **https://timetracker.jayframemedia.com.au**).
 
 **Releasing a change:** bump `VERSION` in `sw.js` (e.g. `v1` → `v2`), commit and push. Installed copies pick up the new version the next time they're opened.
 

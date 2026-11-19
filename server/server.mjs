@@ -194,7 +194,7 @@ export function createSyncServer({ store, token, allowedOrigins = [], log = () =
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const port = Number(process.env.PORT || 8787);
   const dbPath = process.env.DB_PATH || '/data/sync.db';
-  const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'https://jayframemedia.github.io')
+  const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'https://timetracker.jayframemedia.com.au,https://jayframemedia.github.io')
     .split(',').map((s) => s.trim()).filter(Boolean);
   const store = openStore(dbPath);
   const server = createSyncServer({
