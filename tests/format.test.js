@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   clock, toLocalISO, isoDate, parseIsoDate, shortDate, dayMonth, longDay, time12, time24,
   entryMinutes, sumMinutes, formatHours, durationLabel, startOfWeek, addDays,
+  roundTime, shiftTimes, formatTime, toInputValue, fromInputValue,
 } from '../js/format.js';
 
 test('clock formats elapsed time as HH:MM:SS', () => {
@@ -81,4 +82,41 @@ test('startOfWeek starts on Monday by default', () => {
   assert.equal(isoDate(startOfWeek(new Date('2026-11-22T23:59:00+10:00'))), '2026-11-16');
   assert.equal(isoDate(startOfWeek(thu, 0)), '2026-11-15');
   assert.equal(isoDate(addDays(parseIsoDate('2026-12-31'), 1)), '2027-01-01');
+});
+
+test('roundTime rounds to the nearest step in local time', () => {
+  const t = (s) => new Date(`2026-11-16T${s}+10:00`);
+  assert.equal(time24(roundTime(t('08:07:59'), 15)), '08:00');
+  assert.equal(time24(roundTime(t('08:08:00'), 15)), '08:15');
+  assert.equal(time24(roundTime(t('08:02:00'), 5)), '08:00');
+  assert.equal(time24(roundTime(t('08:03:00'), 5)), '08:05');
+  assert.equal(time24(roundTime(t('08:07:59'), 0)), '08:07');
+  const late = roundTime(t('23:55:00'), 15);
+  assert.equal(isoDate(late), '2026-11-17');
+  assert.equal(time24(late), '00:00');
+});
+
+test('entryMinutes with rounding', () => {
+  const e = entry('2026-11-16', '08:07', '16:53');
+  assert.equal(entryMinutes(e), 526);
+  assert.equal(entryMinutes(e, 5), 530); // 08:05 → 16:55
+  assert.equal(entryMinutes(e, 15), 540); // 08:00 → 17:00
+  assert.equal(time24(shiftTimes(e, 15).end), '17:00');
+  assert.equal(sumMinutes([e, e], 15), 1080);
+  // A tiny shift can round to zero, never below
+  assert.equal(entryMinutes(entry('2026-11-16', '08:01', '08:06'), 15), 0);
+});
+
+test('formatTime follows the setting', () => {
+  const d = new Date('2026-11-16T17:05:00+10:00');
+  assert.equal(formatTime(d, '12'), '5:05 pm');
+  assert.equal(formatTime(d, '24'), '17:05');
+});
+
+test('datetime-local input values round-trip in local time', () => {
+  assert.equal(toInputValue('2026-11-16T08:00:45+10:00'), '2026-11-16T08:00');
+  const d = fromInputValue('2026-11-16T17:30');
+  assert.equal(toLocalISO(d), '2026-11-16T17:30:00+10:00');
+  assert.equal(fromInputValue(''), null);
+  assert.equal(fromInputValue('nonsense'), null);
 });

@@ -54,18 +54,50 @@ export function time12(date) {
 /** "08:00" */
 export const time24 = (date) => { const d = toDate(date); return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };
 
+/** "8:00 am" (12-hour) or "08:00" (24-hour). */
+export const formatTime = (date, timeFormat = '12') => (timeFormat === '24' ? time24(date) : time12(date));
+
+/** Drop seconds: the start of the clock minute. */
+const floorMinute = (d) => new Date(Math.floor(toDate(d).getTime() / 60000) * 60000);
+
 /**
- * Whole minutes worked, from the clock-in minute to the clock-out minute.
+ * Round a time to the nearest `step` minutes in local time (step 0 = just drop seconds).
+ * Whole minutes never tie, so there is no half-way case: 8:07 → 8:00, 8:08 → 8:15 at step 15.
+ */
+export function roundTime(date, step = 0) {
+  const d = floorMinute(date);
+  if (!step) return d;
+  const mins = d.getHours() * 60 + d.getMinutes();
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, Math.round(mins / step) * step);
+}
+
+/** Clock-in / clock-out as shown and exported, after rounding. Stored times are never changed. */
+export function shiftTimes(entry, step = 0) {
+  return { start: roundTime(entry.start, step), end: entry.end ? roundTime(entry.end, step) : null };
+}
+
+/**
+ * Whole minutes worked, from the (rounded) clock-in minute to the (rounded) clock-out minute.
  * Seconds are ignored so the hours always match the HH:MM times shown and exported
  * (08:00 → 17:00 is exactly 9.00 h). See docs/DECISIONS.md.
  */
-export function entryMinutes(entry) {
+export function entryMinutes(entry, step = 0) {
   if (!entry.end) return 0;
-  const m = Math.floor(Date.parse(entry.end) / 60000) - Math.floor(Date.parse(entry.start) / 60000);
-  return Math.max(0, m);
+  const { start, end } = shiftTimes(entry, step);
+  return Math.max(0, Math.round((end - start) / 60000));
 }
 
-export const sumMinutes = (entries) => entries.reduce((t, e) => t + entryMinutes(e), 0);
+export const sumMinutes = (entries, step = 0) => entries.reduce((t, e) => t + entryMinutes(e, step), 0);
+
+/** ISO string → value for <input type="datetime-local">, e.g. "2026-11-16T08:00". */
+export const toInputValue = (iso) => { const d = toDate(iso); return `${isoDate(d)}T${time24(d)}`; };
+
+/** <input type="datetime-local"> value (local time) → Date, or null if empty/invalid. */
+export function fromInputValue(value) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(value || '');
+  if (!m) return null;
+  return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]);
+}
 
 /** Minutes → decimal hours, 2 dp: 525 → "8.75". Integer maths, so no float drift. */
 export const formatHours = (minutes) => (Math.round((minutes * 5) / 3) / 100).toFixed(2);

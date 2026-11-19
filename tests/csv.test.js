@@ -69,6 +69,12 @@ test('entriesInRange is inclusive on both ends', () => {
   assert.equal(list.length, 3);
 });
 
+test('rounding applies to CSV times and hours; date stays the stored start date', () => {
+  const csv = buildCsv([entry('2026-11-16', '08:07', '16:53', { id: 'r' })], { rounding: 15 });
+  assert.match(csv, /2026-11-16,Monday,08:00,17:00,9\.00,,,r/);
+  assert.match(buildCsv([entry('2026-11-16', '08:07', '16:53', { id: 'r' })]), /08:07,16:53,8\.77/);
+});
+
 test('filename', () => {
   assert.equal(csvFilename({ from: '2026-11-16', to: '2026-11-22' }), 'timesheet_2026-11-16_to_2026-11-22.csv');
 });

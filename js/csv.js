@@ -1,6 +1,6 @@
 // CSV export (pure). Format is fixed — see CLAUDE.md and samples/sample-export.csv.
 import {
-  isoDate, longDay, time24, entryMinutes, formatHours, startOfWeek, addDays,
+  isoDate, longDay, time24, entryMinutes, formatHours, startOfWeek, addDays, shiftTimes,
 } from './format.js';
 import { finishedEntries } from './history.js';
 
@@ -19,14 +19,16 @@ export function csvField(value) {
   return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-export function csvRow(entry) {
-  const start = new Date(entry.start);
+/** One shift. Date and Day come from the stored start; times and hours use the rounding setting. */
+export function csvRow(entry, { rounding = 0 } = {}) {
+  const day = new Date(entry.start);
+  const t = shiftTimes(entry, rounding);
   return [
-    isoDate(start),
-    longDay(start),
-    time24(start),
-    time24(entry.end),
-    formatHours(entryMinutes(entry)),
+    isoDate(day),
+    longDay(day),
+    time24(t.start),
+    time24(t.end),
+    formatHours(entryMinutes(entry, rounding)),
     entry.employee,
     entry.job,
     entry.id,
@@ -34,11 +36,11 @@ export function csvRow(entry) {
 }
 
 /** Full file text: UTF-8 BOM (so Excel reads it), CRLF line endings, newest shift first. */
-export function buildCsv(entries) {
+export function buildCsv(entries, { rounding = 0 } = {}) {
   const rows = finishedEntries(entries)
     .slice()
     .sort((a, b) => Date.parse(b.start) - Date.parse(a.start))
-    .map(csvRow);
+    .map((e) => csvRow(e, { rounding }));
   return `﻿${[CSV_HEADER.join(','), ...rows].join('\r\n')}\r\n`;
 }
 

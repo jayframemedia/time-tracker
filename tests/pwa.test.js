@@ -39,6 +39,13 @@ test('manifest icons exist and paths are relative (GitHub Pages subfolder)', () 
   }
 });
 
+test('every splash image is linked from index.html', () => {
+  const html = read('index.html');
+  for (const f of readdirSync(new URL('icons/', root)).filter((n) => n.startsWith('splash-'))) {
+    assert.ok(html.includes(`href="icons/${f}"`), `${f} is not linked as an apple-touch-startup-image`);
+  }
+});
+
 test('index.html loads nothing from other hosts', () => {
   const html = read('index.html');
   assert.doesNotMatch(html, /(src|href)="(https?:)?\/\//);
