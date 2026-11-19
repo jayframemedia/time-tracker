@@ -32,7 +32,7 @@ export function normalizeServerUrl(input) {
 
 /** What goes over the wire: the entry without local-only fields. */
 export function toWire(entry) {
-  const { syncedAt, ...rest } = entry; // eslint-disable-line no-unused-vars
+  const { syncedAt, ...rest } = entry;
   return rest;
 }
 
@@ -113,7 +113,7 @@ async function api(config, method, path, body) {
       cache: 'no-store',
     });
   } catch (err) {
-    throw new Error(err.name === 'AbortError' ? 'The server took too long to answer' : 'Can’t reach the server');
+    throw new Error(err.name === 'AbortError' ? 'The server took too long to answer' : 'Can’t reach the server', { cause: err });
   } finally {
     clearTimeout(timer);
   }

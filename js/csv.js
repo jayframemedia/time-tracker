@@ -52,7 +52,7 @@ export function buildCsv(entries, { rounding = 0 } = {}) {
     .slice()
     .sort((a, b) => Date.parse(b.start) - Date.parse(a.start))
     .map((e) => csvRow(e, { rounding }));
-  return `﻿${[CSV_HEADER.join(','), ...rows].join('\r\n')}\r\n`;
+  return `\uFEFF${[CSV_HEADER.join(','), ...rows].join('\r\n')}\r\n`;
 }
 
 /**

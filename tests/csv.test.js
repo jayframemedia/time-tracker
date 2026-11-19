@@ -20,11 +20,11 @@ test('header is exactly as specified', () => {
 
 test('output matches samples/sample-export.csv (plus BOM and CRLF)', () => {
   const csv = buildCsv(sampleEntries());
-  assert.ok(csv.startsWith('﻿'), 'starts with a UTF-8 BOM');
+  assert.ok(csv.startsWith('\uFEFF'), 'starts with a UTF-8 BOM');
   assert.ok(csv.endsWith('\r\n'));
   assert.ok(!/[^\r]\n/.test(csv), 'every line ends with CRLF');
   const sample = readFileSync(new URL('../samples/sample-export.csv', import.meta.url), 'utf8');
-  const norm = (s) => s.replace(/^﻿/, '').replace(/\r\n/g, '\n').trimEnd();
+  const norm = (s) => s.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').trimEnd();
   assert.equal(norm(csv), norm(sample));
 });
 

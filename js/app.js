@@ -270,7 +270,7 @@ function teamEdit(id) {
   if (state.entries.some((x) => x.id === id)) { editShift(id); return; } // your own shift: edit it like any other
   if (!e.end) { toast('Still clocked in — it can be corrected after Finish'); return; }
   const name = state.team.data.users.find((u) => u.id === e.userId)?.name || 'They';
-  const clean = ({ userId, clockSkewMs, original, ...rest }) => rest; // eslint-disable-line no-unused-vars
+  const clean = ({ userId, clockSkewMs, original, ...rest }) => rest; // drop Team-only fields
   openEditSheet(clean(e), {
     entries: state.team.data.entries,
     onSave: async ({ start, end, job, employee }) => {
@@ -304,7 +304,6 @@ function teamEdit(id) {
 
 // ---------- Render ----------
 
-let swipe;
 
 function render() {
   const el = $('#view');
@@ -746,7 +745,7 @@ function onViewKey(ev) {
 }
 
 const viewEl = $('#view');
-swipe = enableSwipe(viewEl, { onDelete: deleteShift });
+const swipe = enableSwipe(viewEl, { onDelete: deleteShift });
 viewEl.addEventListener('click', onViewClick);
 viewEl.addEventListener('keydown', onViewKey);
 
