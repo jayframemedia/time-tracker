@@ -1,0 +1,36 @@
+# Checks every 30 minutes that the app and the sync server answer. If either is down for
+# about a minute, this run fails and GitHub emails the account owner (Settings → Notifications
+# → Actions: "Send notifications for failed workflows").
+# Note: GitHub pauses scheduled workflows in public repos after 60 days with no commits; it
+# emails a warning first, and one click in the Actions tab turns it back on.
+name: Uptime check
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: App and sync server respond
+        shell: bash
+        run: |
+          check() {
+            local url=$1 code=000
+            for attempt in 1 2 3; do
+              code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$url" || true)
+              if [ "$code" = 200 ]; then echo "OK  $url"; return 0; fi
+              sleep 20
+            done
+            echo "::error::DOWN $url (HTTP $code after 3 tries)"
+            return 1
+          }
+          status=0
+          check https://time.jayframemedia.com.au/health || status=1
+          check https://timetracker.jayframemedia.com.au/ || status=1
+          exit $status

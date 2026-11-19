@@ -1,0 +1,24 @@
+# Proposes updates (as pull requests) for the pinned versions. Nothing updates on its own:
+# tests run on each PR, and server image updates still need `git pull` + `docker compose up -d --build`.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ['*']
+
+  - package-ecosystem: docker
+    directory: /server
+    schedule:
+      interval: monthly
+    ignore:
+      - dependency-name: node
+        update-types: ['version-update:semver-major']
+
+  - package-ecosystem: docker-compose
+    directory: /server
+    schedule:
+      interval: monthly
